@@ -31,18 +31,20 @@ def sign_module(path, sign_file, key, cert, release):
         raise ValueError('Not an ARM64 ELF module: ' + str(path))
     if b'vermagic=' + release.encode() + b' ' not in data or data.endswith(b'~Module signature appended~\n'):
         raise ValueError('Unexpected module release or existing signature')
-    run([sign_file, 'sha512', key, cert, path])
-    signed = path.read_bytes()
-    marker = b'~Module signature appended~\n'
-    if not signed.endswith(marker):
-        raise ValueError('Missing appended module signature')
-    trailer = signed[-len(marker)-12:-len(marker)]
-    signature_size = int.from_bytes(trailer[8:12], 'big')
-    signature_start = len(signed) - len(marker) - 12 - signature_size
-    if signed[:signature_start] != data:
-        raise ValueError('Module payload changed while signing')
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
+        # Ubuntu kmodsign expects DER; CMS verification below uses the PEM certificate.
+        (tmp / 'certificate.der').write_bytes(cert_der(cert))
+        run([sign_file, 'sha512', key, tmp / 'certificate.der', path])
+        signed = path.read_bytes()
+        marker = b'~Module signature appended~\n'
+        if not signed.endswith(marker):
+            raise ValueError('Missing appended module signature')
+        trailer = signed[-len(marker)-12:-len(marker)]
+        signature_size = int.from_bytes(trailer[8:12], 'big')
+        signature_start = len(signed) - len(marker) - 12 - signature_size
+        if signed[:signature_start] != data:
+            raise ValueError('Module payload changed while signing')
         (tmp / 'payload').write_bytes(data)
         (tmp / 'signature').write_bytes(signed[signature_start:signature_start+signature_size])
         run(['openssl', 'cms', '-verify', '-binary', '-inform', 'DER', '-in', tmp / 'signature',
