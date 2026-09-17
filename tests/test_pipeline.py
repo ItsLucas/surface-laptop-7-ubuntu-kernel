@@ -8,11 +8,20 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'ci'))
 from common import apply_patches, image_release, release_name, sha256, verify_files
-from resolve import resolve
+from resolve import resolve, has_candidate
 import notify
 
 
 class VersionTests(unittest.TestCase):
+    def test_partial_or_draft_release_never_skips_build(self):
+        release = {'tag_name': 'ubuntu-version-p123-r2.1', 'draft': True,
+                   'assets': [{'name': n} for n in ['sl7-test-unsigned.tar.zst', 'BUILD.json', 'SHA256SUMS']]}
+        self.assertFalse(has_candidate([release], 'ubuntu-version-p123'))
+        release['draft'] = False
+        self.assertTrue(has_candidate([release], 'ubuntu-version-p123'))
+        release['assets'].pop()
+        self.assertFalse(has_candidate([release], 'ubuntu-version-p123'))
+
     def test_next_kernel_series(self):
         self.assertEqual(image_release('linux-image-7.3.0-12-generic'), ('7.3.0', '12'))
         self.assertEqual(image_release('linux-image-7.2.0-5-generic'), ('7.2.0', '5'))

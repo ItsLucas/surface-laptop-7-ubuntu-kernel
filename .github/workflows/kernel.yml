@@ -119,7 +119,8 @@ jobs:
           See README.zh-CN.md for local signing and the separate installation / one-shot test process. Keep the currently working kernel and Secure Boot enabled.
           EOF
           gh release create "$RELEASE_TAG" dist/* --repo "$GH_REPO" \
-            --target "$GITHUB_SHA" --prerelease --title "$KERNEL_RELEASE (unsigned candidate)" --notes-file notes.md
+            --target "$GITHUB_SHA" --draft --prerelease --title "$KERNEL_RELEASE (unsigned candidate)" --notes-file notes.md
+          gh release edit "$RELEASE_TAG" --repo "$GH_REPO" --draft=false --prerelease
 
   notify:
     needs: [resolve, build, publish]

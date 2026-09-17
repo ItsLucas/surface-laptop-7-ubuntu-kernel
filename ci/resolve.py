@@ -11,6 +11,16 @@ import urllib.request
 from common import image_release, recipe_hash, release_name
 
 
+def has_candidate(releases, recipe_tag):
+    for release in releases:
+        tag = release['tag_name']
+        names = {a['name'] for a in release['assets']}
+        if (tag == recipe_tag or tag.startswith(recipe_tag + '-r')) and not release['draft']:
+            if {'SHA256SUMS', 'BUILD.json'} <= names and any(n.endswith('-unsigned.tar.zst') for n in names):
+                return True
+    return False
+
+
 def resolve(cache):
     meta = cache['linux-image-generic'].candidate
     names = [d.name for group in meta.dependencies for d in group.or_dependencies
@@ -49,21 +59,16 @@ def main():
     exists = False
     if not args.offline:
         repository = os.environ['GITHUB_REPOSITORY']
-        request = urllib.request.Request(f'https://api.github.com/repos/{repository}/releases/tags/{tag}',
+        request = urllib.request.Request(f'https://api.github.com/repos/{repository}/releases?per_page=100',
                   headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'})
-        try:
-            with urllib.request.urlopen(request, timeout=30) as response:
-                release = json.load(response)
-            exists = not release['draft'] and any(a['name'].endswith('-unsigned.tar.zst') for a in release['assets'])
-        except urllib.error.HTTPError as e:
-            if e.code != 404:
-                raise
+        with urllib.request.urlopen(request, timeout=30) as response:
+            exists = has_candidate(json.load(response), tag)
     number = os.environ.get('GITHUB_RUN_NUMBER', '1')
     attempt = os.environ.get('GITHUB_RUN_ATTEMPT', '1')
     # Every actual run gets a unique release/tag; the recipe key is recorded in release names.
     should_build = not exists or os.environ.get('FORCE_BUILD') == 'true'
     data.update(recipe_sha256=fingerprint, cache_tag=tag,
-                release_tag=(tag + f'-r{number}.{attempt}') if exists else tag,
+                release_tag=tag + f'-r{number}.{attempt}',
                 release=release_name(data['kernel'], data['abi'], number, attempt),
                 package_version=data['ubuntu_version'] + f'+sl7.{number}.{attempt}',
                 source_commit=os.environ.get('GITHUB_SHA', 'local-validation'),
