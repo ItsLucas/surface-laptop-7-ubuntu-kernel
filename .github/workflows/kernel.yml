@@ -1,0 +1,140 @@
+name: Ubuntu 26.10 SL7 kernel
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Rebuild even if this Ubuntu version and recipe already have a candidate
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    paths: ['ci/**', 'patches/**', '.github/workflows/kernel.yml']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ubuntu-stonking-kernel
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    container:
+      image: ubuntu:26.10@sha256:73b76549166d2d32444ccbd2b79b34381a1b3e25fd150cdd7fb12383fe7ebdc2
+    outputs:
+      build: ${{ steps.resolve.outputs.build }}
+      tag: ${{ steps.resolve.outputs.tag }}
+      release: ${{ steps.resolve.outputs.release }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - run: bash ci/apt-setup.sh
+      - id: resolve
+        env:
+          MODULE_CERT_PEM: ${{ vars.MODULE_CERT_PEM }}
+          GH_TOKEN: ${{ github.token }}
+          FORCE_BUILD: ${{ inputs.force }}
+        run: python3 ci/resolve.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: build-input
+          path: work/input.json
+          retention-days: 7
+
+  build:
+    needs: resolve
+    if: needs.resolve.outputs.build == 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: build-input
+          path: work
+      - name: Make room on the disposable runner
+        run: |
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h .
+      - name: Build in Ubuntu 26.10 ARM64
+        env:
+          MODULE_CERT_PEM: ${{ vars.MODULE_CERT_PEM }}
+        run: |
+          docker run --rm --platform linux/arm64 \
+            -e MODULE_CERT_PEM \
+            -v "$GITHUB_WORKSPACE:/workspace" -w /workspace \
+            ubuntu:26.10@sha256:73b76549166d2d32444ccbd2b79b34381a1b3e25fd150cdd7fb12383fe7ebdc2 \
+            bash -c 'bash ci/apt-setup.sh && python3 ci/build.py'
+      - name: Upload unsigned candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: unsigned-kernel
+          path: dist/
+          compression-level: 0
+          retention-days: 7
+          if-no-files-found: error
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: build-diagnostics
+          path: |
+            work/input.json
+            work/logs/
+            work/output/.config
+          retention-days: 14
+          if-no-files-found: warn
+
+  publish:
+    needs: [resolve, build]
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: unsigned-kernel
+          path: dist
+      - name: Publish a candidate, never an installed kernel
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.resolve.outputs.tag }}
+          KERNEL_RELEASE: ${{ needs.resolve.outputs.release }}
+        run: |
+          cat > notes.md <<'EOF'
+          Ubuntu 26.10 ARM64 + Romulus13 Wi-Fi / touchpad / SPI touchscreen / power patches.
+
+          **Unsigned build candidate; not hardware-validated.** Verify SHA256SUMS, review BUILD.json and logs, then sign locally with your enrolled MOK. Private keys never enter this workflow. No firmware, machine calibration or personal network settings are included.
+
+          See README.zh-CN.md for local signing and the separate installation / one-shot test process. Keep the currently working kernel and Secure Boot enabled.
+          EOF
+          gh release create "$RELEASE_TAG" dist/* --repo "$GH_REPO" \
+            --target "$GITHUB_SHA" --prerelease --title "$KERNEL_RELEASE (unsigned candidate)" --notes-file notes.md
+
+  notify:
+    needs: [resolve, build, publish]
+    if: ${{ always() && (failure() || needs.publish.result == 'success') }}
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Notify failures or close a recovered failure
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_RESULT: ${{ needs.publish.result }}
+          JOB_RESULTS: resolve=${{ needs.resolve.result }}, build=${{ needs.build.result }}, publish=${{ needs.publish.result }}
+        run: python3 ci/notify.py

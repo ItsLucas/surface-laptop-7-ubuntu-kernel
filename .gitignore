@@ -1,0 +1,10 @@
+work/
+dist/
+*.deb
+*.tar.zst
+__pycache__/
+*.priv
+*.key
+*.pem
+*.der
+!tests/fixtures/
