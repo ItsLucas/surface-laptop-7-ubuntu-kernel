@@ -87,6 +87,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: build-diagnostics
+          include-hidden-files: true
           path: |
             work/input.json
             work/logs/
@@ -94,8 +95,46 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
-  publish:
+  sign:
     needs: [resolve, build]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    environment: secure-boot-signing
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: unsigned-kernel
+          path: unsigned-download
+      - name: Prepare trusted signing tools before exposing Secrets
+        run: docker build -f ci/Signing.Dockerfile -t sl7-signing-tools .
+      - name: Sign modules and both EFI layers without network access
+        env:
+          SL7_MODULE_KEY_PEM: ${{ secrets.SL7_MODULE_KEY_PEM }}
+          SL7_MODULE_CERT_PEM: ${{ secrets.SL7_MODULE_CERT_PEM }}
+          SL7_BOOT_KEY_PEM: ${{ secrets.SL7_BOOT_KEY_PEM }}
+          SL7_BOOT_CERT_PEM: ${{ secrets.SL7_BOOT_CERT_PEM }}
+        run: |
+          mkdir -p signed-output
+          docker run --rm --network none --read-only --tmpfs /tmp:rw,nosuid,size=512m \
+            -e SL7_MODULE_KEY_PEM -e SL7_MODULE_CERT_PEM -e SL7_BOOT_KEY_PEM -e SL7_BOOT_CERT_PEM \
+            -v "$GITHUB_WORKSPACE:/workspace:ro" \
+            -v "$GITHUB_WORKSPACE/unsigned-download:/input:ro" \
+            -v "$GITHUB_WORKSPACE/signed-output:/out" -w /workspace \
+            sl7-signing-tools python3 ci/sign-ci.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: signed-kernel
+          path: signed-output/
+          compression-level: 0
+          retention-days: 7
+          if-no-files-found: error
+
+  publish:
+    needs: [resolve, sign]
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: write
@@ -103,6 +142,10 @@ jobs:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: unsigned-kernel
+          path: dist
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: signed-kernel
           path: dist
       - name: Publish a candidate, never an installed kernel
         env:
@@ -114,16 +157,18 @@ jobs:
           cat > notes.md <<'EOF'
           Ubuntu 26.10 ARM64 + Romulus13 Wi-Fi / touchpad / SPI touchscreen / power patches.
 
-          **Unsigned build candidate; not hardware-validated.** Verify SHA256SUMS, review BUILD.json and logs, then sign locally with your enrolled MOK. Private keys never enter this workflow. No firmware, machine calibration or personal network settings are included.
+          **Signed build candidate; not hardware-validated.** The linux-image deb contains signed modules and an EFI image with the Romulus13 device tree. Review SIGNING.json and BUILD.json. Signing keys are supplied only to the main-branch environment signing job and are excluded from artifacts. No firmware, machine calibration or personal network settings are included.
 
-          See README.zh-CN.md for local signing and the separate installation / one-shot test process. Keep the currently working kernel and Secure Boot enabled.
+          See README.zh-CN.md for the separate local initrd, installation and one-shot test process. Keep the currently working kernel and Secure Boot enabled. The unsigned bundle remains available for independent signing and reproducibility.
           EOF
+          (cd dist && sha256sum -c SHA256SUMS && sha256sum -c SIGNING-SHA256SUMS)
+          (cd dist && sha256sum *.deb *.tar.zst BUILD.json SIGNING.json > RELEASE-SHA256SUMS)
           gh release create "$RELEASE_TAG" dist/* --repo "$GH_REPO" \
-            --target "$GITHUB_SHA" --draft --prerelease --title "$KERNEL_RELEASE (unsigned candidate)" --notes-file notes.md
+            --target "$GITHUB_SHA" --draft --prerelease --title "$KERNEL_RELEASE (signed candidate)" --notes-file notes.md
           gh release edit "$RELEASE_TAG" --repo "$GH_REPO" --draft=false --prerelease
 
   notify:
-    needs: [resolve, build, publish]
+    needs: [resolve, build, sign, publish]
     if: ${{ always() && (failure() || needs.publish.result == 'success') }}
     runs-on: ubuntu-24.04-arm
     permissions:
@@ -137,5 +182,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           BUILD_RESULT: ${{ needs.publish.result }}
-          JOB_RESULTS: resolve=${{ needs.resolve.result }}, build=${{ needs.build.result }}, publish=${{ needs.publish.result }}
+          JOB_RESULTS: resolve=${{ needs.resolve.result }}, build=${{ needs.build.result }}, sign=${{ needs.sign.result }}, publish=${{ needs.publish.result }}
         run: python3 ci/notify.py

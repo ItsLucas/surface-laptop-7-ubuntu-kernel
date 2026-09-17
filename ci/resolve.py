@@ -16,7 +16,9 @@ def has_candidate(releases, recipe_tag):
         tag = release['tag_name']
         names = {a['name'] for a in release['assets']}
         if (tag == recipe_tag or tag.startswith(recipe_tag + '-r')) and not release['draft']:
-            if {'SHA256SUMS', 'BUILD.json'} <= names and any(n.endswith('-unsigned.tar.zst') for n in names):
+            if ({'SHA256SUMS', 'BUILD.json', 'SIGNING.json', 'RELEASE-SHA256SUMS'} <= names
+                    and any(n.endswith('-unsigned.tar.zst') for n in names)
+                    and any(n.startswith('linux-image-') and n.endswith('_arm64.deb') for n in names)):
                 return True
     return False
 

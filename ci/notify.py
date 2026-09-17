@@ -24,7 +24,7 @@ def main():
     existing = next((i for i in issues if i['title'] == TITLE and 'pull_request' not in i), None)
     if os.environ.get('BUILD_RESULT') == 'success':
         if existing:
-            api(f"/issues/{existing['number']}/comments", 'POST', {'body': f'当前构建已成功：[运行记录]({run_url})。产物仍需本地签名和实机验收。'})
+            api(f"/issues/{existing['number']}/comments", 'POST', {'body': f'当前构建和签名已成功：[运行记录]({run_url})。产物仍需本地initrd和实机验收。'})
             api(f"/issues/{existing['number']}", 'PATCH', {'state': 'closed'})
         return
     body = (f"@{os.environ['GITHUB_REPOSITORY_OWNER']} 自动构建失败，需要检查。\n\n"

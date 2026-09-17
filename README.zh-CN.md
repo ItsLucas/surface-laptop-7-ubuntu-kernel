@@ -9,11 +9,11 @@
 - Ubuntu版本、补丁、构建脚本、workflow或公开模块证书改变才重建。手动选择force可强制重建；每次产物的内核release都唯一，便于并存。
 - 五个补丁按series严格依次应用，`--fuzz=0`。任何补丁冲突、源/config不同步、工具链变化或编译失败，都使构建失败；不自动跳过、反向应用或让AI自动改补丁。
 - 失败时自动创建/更新一个GitHub Issue，`@仓库所有者`并附运行链接。通知邮件/推送依赖所有者的GitHub通知设置。后续成功构建自动关闭该Issue。GitHub基础设施整体故障时通知任务也可能无法运行。
-- 成功后发布 **prerelease / unsigned candidate**，含校验清单、官方输入版本、补丁哈希、构建日志和未签名内核模块；编译成功不代表已通过实机验收。
+- 成功后发布 **prerelease / signed candidate**，含校验清单、官方输入版本、补丁哈希、构建日志、签名后的内核deb及可独立重签的未签名构建包；编译和验签成功不代表已通过实机验收。
 
-## Secure Boot与本地签名
+## Secure Boot与GitHub Secrets签名
 
-GitHub只需要仓库变量 `MODULE_CERT_PEM`，内容是模块签名密钥对应的**公开PEM证书**，供内核内建信任。禁止上传私钥；此仓库不保存机器固件、个人校准、网络配置或MOK口令。
+GitHub只需要仓库变量 `MODULE_CERT_PEM`，内容是模块签名密钥对应的**公开PEM证书**，供内核内建信任。构建任务不接触私钥；源码仓库不保存证书、私钥、机器固件、个人校准、网络配置或MOK口令。
 
 在仓库Settings → Secrets and variables → Actions → Variables添加该变量。也可在已登录gh的终端使用：
 
@@ -21,9 +21,22 @@ GitHub只需要仓库变量 `MODULE_CERT_PEM`，内容是模块签名密钥对�
 gh variable set MODULE_CERT_PEM --repo OWNER/REPO < /path/to/module-public-cert.pem
 ```
 
-如果本机只有DER证书，先用 `openssl x509 -inform DER -in module.der -out module.pem` 转换公开证书即可。CI私钥为空；不会自动安装、生成本机initrd、登记MOK、改默认内核或重启。
+如果本机只有DER证书，先用 `openssl x509 -inform DER -in module.der -out module.pem` 转换公开证书即可。签名私钥按用户要求保存在下述专用Environment的加密Secrets中；不会自动安装、生成本机initrd、登记MOK、改默认内核或重启。
 
-下载Release产物，核对SHA256SUMS，在普通用户目录解压并审阅BUILD.json、config差异及日志。然后使用本机已登记的模块密钥和启动密钥签名：
+仓库Environment `secure-boot-signing` 配置为仅允许main分支部署，并保存四个Secrets：
+
+- `SL7_MODULE_KEY_PEM`：现有模块签名私钥。
+- `SL7_MODULE_CERT_PEM`：配套公开模块证书，必须与MODULE_CERT_PEM变量相同。
+- `SL7_BOOT_KEY_PEM`：现有EFI启动签名私钥。
+- `SL7_BOOT_CERT_PEM`：配套公开启动证书。
+
+可用 `gh secret set NAME --env secure-boot-signing --repo OWNER/REPO < /path/to/file` 设置。四项材料不得提交到Git。签名任务仅在main分支运行；PR检查不使用Environment或Secrets。签名工具镜像在注入Secrets之前构建，实际签名容器禁用网络；私钥仅写入容器/tmp的临时内存文件，子进程环境不再携带Secrets，结束后删除，不上传为Artifact。
+
+模块使用Ubuntu提供的kmodsign，校验证书与私钥匹配、模块CMS签名以及内外两层EFI签名；不执行构建产物中的sign-file程序。保留原来已登记的密钥，因此本机无需重新登记MOK。对main分支、签名脚本和Environment的写权限等同于使用这些签名密钥的权限，应仅交给可信维护者。
+
+成功Release提供签名deb、SIGNING.json和RELEASE-SHA256SUMS，以及源码包、官方配置包、未签名构建包和日志。签名deb仍需本地生成匹配initrd、安装审批和硬件验收，不会自动切换内核。
+
+如果希望自行重签：下载未签名构建包，核对SHA256SUMS，在普通用户目录解压并审阅BUILD.json、config差异及日志，然后使用本机密钥：
 
 ```sh
 sudo python3 ci/sign-local.py \

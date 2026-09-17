@@ -64,20 +64,22 @@ def main():
         raise RuntimeError('Ubuntu compiler metadata changed; review toolchain selection')
     gcc_major = int(gcc.group(1)) // 10000
     rustc = 'rustc-' + rust.group(1)
-    run(['apt-get', 'install', '-y', '--no-install-recommends', f'gcc-{gcc_major}', f'g++-{gcc_major}', rustc, 'bindgen'], env=env)
+    run(['apt-get', 'install', '-y', '--no-install-recommends', f'gcc-{gcc_major}', f'g++-{gcc_major}',
+         rustc, 'rust-' + rust.group(1) + '-src', 'bindgen'], env=env)
     make = ['make', '-C', source, 'O=' + str(output),
             'LOCALVERSION=-' + data['abi'] + '-sl7.' + data['release'].split('-sl7.')[1],
             f'CC=gcc-{gcc_major}', f'HOSTCC=gcc-{gcc_major}', f'HOSTCXX=g++-{gcc_major}',
             'RUSTC=' + rustc, 'BINDGEN=bindgen']
+    run(make + ['rustavailable'])
     run(make + ['olddefconfig'])
+    with (logs / 'config.diff').open('w') as f:
+        subprocess.run(['diff', '-u', official / 'config', output / '.config'], stdout=f, check=False)
     for setting in ['CONFIG_SPI_HID=m', 'CONFIG_MODULE_SIG=y', 'CONFIG_SECURITY_LOCKDOWN_LSM=y', 'CONFIG_RUST=y']:
         if setting not in (output / '.config').read_text().splitlines():
             raise RuntimeError('Required setting lost: ' + setting)
     observed = subprocess.check_output([str(x) for x in make + ['-s', 'kernelrelease']], text=True).strip()
     if observed != data['release']:
         raise RuntimeError(f'Unexpected kernel release {observed}')
-    with (logs / 'config.diff').open('w') as f:
-        subprocess.run(['diff', '-u', official / 'config', output / '.config'], stdout=f, check=False)
     with (logs / 'build.log').open('w') as log:
         run(make + ['-j' + str(min(os.cpu_count() or 2, 4)), 'Image', 'modules', 'vmlinuz.efi',
                     'qcom/x1e80100-microsoft-romulus13.dtb'], stdout=log, stderr=subprocess.STDOUT)

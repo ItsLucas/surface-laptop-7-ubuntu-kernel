@@ -59,6 +59,8 @@ def main():
     ap.add_argument('--module-cert', type=Path, required=True, help='PEM certificate matching the CI public certificate')
     ap.add_argument('--boot-key', type=Path, required=True)
     ap.add_argument('--boot-cert', type=Path, required=True, help='Already enrolled boot-signing PEM certificate')
+    ap.add_argument('--sign-file', type=Path, default=Path('/usr/bin/kmodsign'),
+                    help='Trusted local signing tool; do not execute a downloaded build helper with private keys')
     args = ap.parse_args()
     bundle = args.bundle.resolve(); out = args.output.resolve()
     verify_files(bundle)
@@ -83,7 +85,7 @@ def main():
     if len(paths) != data['module_count']:
         raise ValueError('Module count mismatch')
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-        list(executor.map(lambda p: sign_module(p, bundle / 'tools/sign-file', args.module_key,
+        list(executor.map(lambda p: sign_module(p, args.sign_file, args.module_key,
                                               args.module_cert, release), paths))
     run(['depmod', '-b', stage, release])
     boot = stage / 'boot/sl7' / release; boot.mkdir(parents=True)

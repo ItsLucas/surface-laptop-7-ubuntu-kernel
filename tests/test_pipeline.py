@@ -15,7 +15,8 @@ import notify
 class VersionTests(unittest.TestCase):
     def test_partial_or_draft_release_never_skips_build(self):
         release = {'tag_name': 'ubuntu-version-p123-r2.1', 'draft': True,
-                   'assets': [{'name': n} for n in ['sl7-test-unsigned.tar.zst', 'BUILD.json', 'SHA256SUMS']]}
+                   'assets': [{'name': n} for n in ['sl7-test-unsigned.tar.zst', 'BUILD.json', 'SHA256SUMS',
+                                                  'SIGNING.json', 'RELEASE-SHA256SUMS', 'linux-image-test_arm64.deb']]}
         self.assertFalse(has_candidate([release], 'ubuntu-version-p123'))
         release['draft'] = False
         self.assertTrue(has_candidate([release], 'ubuntu-version-p123'))
