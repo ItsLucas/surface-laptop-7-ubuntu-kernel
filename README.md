@@ -8,7 +8,7 @@ Configure the **public certificate** in repository variable `MODULE_CERT_PEM` an
 
 [中文使用与维护说明](README.zh-CN.md) · [Patch provenance](PROVENANCE.md)
 
-The signed APT archive is **https://mirrors.5cena.cc/** (`stonking`, `arm64`,
+The signed APT archive is **https://mirrors.5cena.cc/sl7/** (`stonking`, `arm64`,
 `candidate` / `stable`). Install the `linux-sl7` metapackage to follow updates.
 The image package uses Ubuntu kernel hooks to generate initrd with dracut and
 refresh the existing GRUB2 menu; old kernels remain available for rollback.

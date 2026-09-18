@@ -16,4 +16,3 @@ PrivateTmp=yes
 ProtectSystem=strict
 ProtectHome=yes
 ReadWritePaths=/srv/sl7-apt
-

@@ -38,12 +38,12 @@ gh variable set MODULE_CERT_PEM --repo OWNER/REPO < /path/to/module-public-cert.
 
 ## APT软件源与自动安装
 
-软件源为 **https://mirrors.5cena.cc/**，仅适用于Ubuntu 26.10 / arm64 / 13.8英寸Romulus13及已有GRUB2环境。`candidate`接收签名候选；实机验收后才晋升`stable`，尚无验收版本时stable为空。
+软件源为 **https://mirrors.5cena.cc/sl7/**，仅适用于Ubuntu 26.10 / arm64 / 13.8英寸Romulus13及已有GRUB2环境。`candidate`接收签名候选；实机验收后才晋升`stable`，尚无验收版本时stable为空。
 
 ```sh
 sudo install -d -m 0755 /etc/apt/keyrings
-curl -fsSL https://mirrors.5cena.cc/sl7-archive-keyring.asc | sudo tee /etc/apt/keyrings/sl7-archive-keyring.asc >/dev/null
-curl -fsSL https://mirrors.5cena.cc/sl7.sources | sudo tee /etc/apt/sources.list.d/sl7.sources >/dev/null
+curl -fsSL https://mirrors.5cena.cc/sl7/sl7-archive-keyring.asc | sudo tee /etc/apt/keyrings/sl7-archive-keyring.asc >/dev/null
+curl -fsSL https://mirrors.5cena.cc/sl7/sl7.sources | sudo tee /etc/apt/sources.list.d/sl7.sources >/dev/null
 sudo apt update
 sudo apt install linux-sl7
 ```

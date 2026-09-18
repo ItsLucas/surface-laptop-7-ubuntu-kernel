@@ -1,5 +1,5 @@
 Types: deb
-URIs: https://mirrors.5cena.cc/
+URIs: https://mirrors.5cena.cc/sl7/
 Suites: stonking
 Components: candidate
 Architectures: arm64

@@ -9,8 +9,8 @@
 <p><code>candidate</code> 提供通过构建、签名和打包测试的候选版本；实机验证后才进入 <code>stable</code>。当前订阅文件选择 candidate。</p>
 <h2>添加软件源</h2>
 <pre>sudo install -d -m 0755 /etc/apt/keyrings
-curl -fsSL https://mirrors.5cena.cc/sl7-archive-keyring.asc | sudo tee /etc/apt/keyrings/sl7-archive-keyring.asc &gt;/dev/null
-curl -fsSL https://mirrors.5cena.cc/sl7.sources | sudo tee /etc/apt/sources.list.d/sl7.sources &gt;/dev/null
+curl -fsSL https://mirrors.5cena.cc/sl7/sl7-archive-keyring.asc | sudo tee /etc/apt/keyrings/sl7-archive-keyring.asc &gt;/dev/null
+curl -fsSL https://mirrors.5cena.cc/sl7/sl7.sources | sudo tee /etc/apt/sources.list.d/sl7.sources &gt;/dev/null
 sudo apt update
 sudo apt install linux-sl7</pre>
 <p>软件源签名密钥指纹：<code>EFC6 6FC4 3239 A82F 1909 B2A6 283F 8715 8DF0 52D9</code>。</p>

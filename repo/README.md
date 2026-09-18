@@ -1,6 +1,6 @@
 # SL7 APT archive operations
 
-The deployed endpoint is https://mirrors.5cena.cc/. Packages target Ubuntu 26.10
+The deployed endpoint is https://mirrors.5cena.cc/sl7/. Packages target Ubuntu 26.10
 `stonking`, `arm64`, Surface Laptop 7 13.8-inch / Romulus13, with existing GRUB2.
 Use `sl7.sources` and the public archive key from the endpoint. The `candidate`
 component receives completed native-package GitHub Releases; `stable` is promoted
@@ -14,7 +14,9 @@ https://documentation.ubuntu.com/launchpad/user/reference/packaging/ppas/ppa/.
 ## Deployment layout
 
 - `/opt/sl7-apt/{publish,sync}.py`: root-owned publisher and GitHub synchronizer.
-- `/srv/sl7-apt/public`: Nginx document root, immutable pool, public key, reports.
+- `/srv/mirrors`: generic Nginx document root and mirror landing page.
+- `/srv/mirrors/sl7`: symlink to `/srv/sl7-apt/public`, the archive's immutable
+  pool, public key and reports, exposed only under `/sl7/`.
 - `/srv/sl7-apt/snapshots`: signed index generations; `public/dists` switches
   atomically. All earlier by-hash indexes remain accessible.
 - `/srv/sl7-apt/gnupg`: mode 0700, owned by the `sl7repo` service account. Back up
@@ -31,6 +33,8 @@ deploy hook, with the existing Certbot timer retained.
 Required server tools: Python 3, dpkg-dev, GnuPG, Nginx, Certbot, CA certificates.
 Install `nginx-http.conf` to complete HTTP-01 issuance, then `nginx.conf` after the
 certificate exists. Other virtual hosts are independent.
+HTTP-01 challenges keep their existing `/srv/sl7-apt/public` webroot through the
+dedicated Nginx challenge location; the domain root is not an APT repository.
 
 ## Import / promotion / recovery
 
