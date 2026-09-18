@@ -34,6 +34,9 @@ return 404; the complete archive is under `/sl7/`.
   rechecked after moving the archive under `/sl7/`.
 - All four candidate/stable index files were fetched via HTTPS by-hash URLs and
   matched the signed Release sizes and hashes. Stable is intentionally empty.
+- `/sl7/pool/`, `candidate/` and `stable/` directory listings return HTTP 200.
+  Immutable caching applies only to deb and by-hash files, not directory requests;
+  package downloads and by-hash digests were rechecked after fixing this routing.
 - Nginx configuration and HTTPS issuance passed. Certbot renewal dry run passed,
   including the Nginx reload deploy hook. Certificate expiry: 2026-12-17.
 - The hourly `sl7-apt-sync` service completed with exit status 0. The archive
