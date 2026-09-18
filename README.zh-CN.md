@@ -34,7 +34,29 @@ gh variable set MODULE_CERT_PEM --repo OWNER/REPO < /path/to/module-public-cert.
 
 模块使用Ubuntu提供的kmodsign，校验证书与私钥匹配、模块CMS签名以及内外两层EFI签名；不执行构建产物中的sign-file程序。保留原来已登记的密钥，因此本机无需重新登记MOK。对main分支、签名脚本和Environment的写权限等同于使用这些签名密钥的权限，应仅交给可信维护者。
 
-成功Release提供签名deb、SIGNING.json和RELEASE-SHA256SUMS，以及源码包、官方配置包、未签名构建包和日志。签名deb仍需本地生成匹配initrd、安装审批和硬件验收，不会自动切换内核。
+成功Release提供签名内核deb、`linux-sl7-support`集成包、`linux-sl7`更新元包、SIGNING.json和RELEASE-SHA256SUMS，以及源码包、官方配置包、未签名构建包和日志。CI只构建和发布；用户通过APT安装后，包会自动生成匹配initrd并更新GRUB。
+
+## APT软件源与自动安装
+
+软件源为 **https://mirrors.5cena.cc/**，仅适用于Ubuntu 26.10 / arm64 / 13.8英寸Romulus13及已有GRUB2环境。`candidate`接收签名候选；实机验收后才晋升`stable`，尚无验收版本时stable为空。
+
+```sh
+sudo install -d -m 0755 /etc/apt/keyrings
+curl -fsSL https://mirrors.5cena.cc/sl7-archive-keyring.asc | sudo tee /etc/apt/keyrings/sl7-archive-keyring.asc >/dev/null
+curl -fsSL https://mirrors.5cena.cc/sl7.sources | sudo tee /etc/apt/sources.list.d/sl7.sources >/dev/null
+sudo apt update
+sudo apt install linux-sl7
+```
+
+软件源公钥指纹为`EFC66FC43239A82F1909B2A6283F87158DF052D9`。下载的sources文件订阅candidate；只接收实机验收版本可将Components改为stable。保留`linux-sl7`元包后，后续执行`sudo apt upgrade`即可跟随内核更新。
+
+安装包使用标准`/boot/vmlinuz-版本`、`/boot/config-版本`和`/boot/System.map-版本`布局。内核postinst调用Ubuntu的`linux-run-hooks`，由发行版dracut生成`/boot/initrd.img-版本`，再由GRUB钩子更新菜单。升级并存；卸载清理对应initrd及菜单；当前运行内核的删除交给Ubuntu的`linux-check-removal`。生成失败会使包配置失败，可在修正问题后用`sudo dpkg --configure -a`重试，不会自动重启。
+
+SL7专用dracut配置只作用于`*-sl7.*`版本，加入SPI HID/GPI驱动并保留本机现有Wi-Fi board覆盖文件，不向官方内核强加未提供的模块。现有固件、dracut配置、GRUB板级参数、iptsd及校准继续沿用。两个已知旧固定默认项`sl7-combined-kernel`和`sl7-spi-touchscreen-test`会迁移到GRUB默认第一项；其他自定义默认值（包括saved）保留。旧菜单项也保留。旧SL7内核不会被autoremove自动删除，验收后可显式`apt purge linux-image-具体版本`释放空间。
+
+APT源签名与Secure Boot信任是两套机制。原有机器已登记对应启动密钥，无需再次登记。新机器首次使用需通过`mokutil --test-key /usr/share/sl7-kernel/内核版本/boot-cert.der`检查，未登记时用`sudo mokutil --import`导入该文件并在重启的MOK界面确认；不要在完成登记前选择新内核，也不要关闭Secure Boot绕过。该源目前不提供headers/DKMS开发包，不替代机器固件和用户态配置。
+
+首批`7.2.0-5.5+sl7.4.1+pkg1`从已签名Release重打包，内核release仍为`7.2.0-5-sl7.4.1`，EFI与模块字节不变。原Release内的旧deb仍是无安装钩子的历史产物；使用APT源中的新包。软件源部署、签名、同步与晋升说明见[repo/README.md](repo/README.md)。
 
 如果希望自行重签：下载未签名构建包，核对SHA256SUMS，在普通用户目录解压并审阅BUILD.json、config差异及日志，然后使用本机密钥：
 
@@ -50,7 +72,7 @@ sudo python3 ci/sign-local.py \
 
 本地需要openssl、sbsigntool、kmod、zstd、dpkg及Stubble Python依赖（如python3-pefile）。脚本验证文件清单、内建模块证书与私钥匹配、ARM64模块release；逐个签名并验证模块CMS签名，再签内层EFI、嵌入Romulus13设备树并签外层EFI，最终生成可并存deb。整个过程只写新的暂存目录，不安装。
 
-此deb没有修改启动项的维护脚本。获准安装后，需用本机dracut、现有板级固件/模块配置生成对应initrd，并安排独立启动项；保持当前已验证内核、官方内核与5秒回退菜单。确认Secure Boot、Wi-Fi/MAC、蓝牙、触控板移动/点击/轻触/双指滚动、触屏、冷启动、熄屏/解锁和deep恢复后，才考虑切换默认。私钥丢失或更换需要另行处理信任登记，不能关闭Secure Boot绕过。
+本地重签也生成上述三个配套deb，应一起交给`apt install ./linux-*.deb`处理依赖和自动配置。保持当前已验证内核、官方内核与回退菜单；新候选仍需确认Secure Boot、Wi-Fi/MAC、蓝牙、触控板移动/点击/轻触/双指滚动、触屏、冷启动、熄屏/解锁和deep恢复。私钥丢失或更换需要另行处理信任登记。
 
 ## 补丁与支持范围
 

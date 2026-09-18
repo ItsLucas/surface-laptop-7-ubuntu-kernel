@@ -1,0 +1,9 @@
+#!/bin/sh
+set -eu
+version='@RELEASE@'
+case "$1" in
+    remove)
+        linux-check-removal "$version"
+        linux-run-hooks image prerm "$version" "/boot/vmlinuz-$version" -- "$@"
+        ;;
+esac

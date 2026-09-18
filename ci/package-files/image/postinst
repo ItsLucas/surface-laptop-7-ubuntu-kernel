@@ -1,0 +1,15 @@
+#!/bin/sh
+set -eu
+version='@RELEASE@'
+case "$1" in
+    configure)
+        depmod -a "$version"
+        change=upgrade
+        [ -n "${2:-}" ] || change=install
+        linux-update-symlinks "$change" "$version" "/boot/vmlinuz-$version"
+        # Ubuntu's dracut hook runs before zz-update-grub. A failure stops dpkg;
+        # dpkg --configure -a retries the complete, idempotent hook sequence.
+        linux-run-hooks image postinst "$version" "/boot/vmlinuz-$version" -- "$@"
+        test -s "/boot/initrd.img-$version"
+        ;;
+esac

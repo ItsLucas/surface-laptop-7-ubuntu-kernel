@@ -133,8 +133,26 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
+  validate-packages:
+    needs: sign
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: signed-kernel
+          path: signed-output
+      - name: Test signed packages with dpkg, dracut and GRUB
+        run: |
+          docker build -f tests/Packaging.Dockerfile -t sl7-package-check .
+          docker run --rm -v "$GITHUB_WORKSPACE:/workspace:ro" sl7-package-check \
+            python3 tests/install-smoke.py --packages /workspace/signed-output
+
   publish:
-    needs: [resolve, sign]
+    needs: [resolve, sign, validate-packages]
     runs-on: ubuntu-24.04-arm
     permissions:
       contents: write
@@ -159,7 +177,7 @@ jobs:
 
           **Signed build candidate; not hardware-validated.** The linux-image deb contains signed modules and an EFI image with the Romulus13 device tree. Review SIGNING.json and BUILD.json. Signing keys are supplied only to the main-branch environment signing job and are excluded from artifacts. No firmware, machine calibration or personal network settings are included.
 
-          See README.zh-CN.md for the separate local initrd, installation and one-shot test process. Keep the currently working kernel and Secure Boot enabled. The unsigned bundle remains available for independent signing and reproducibility.
+          Install the matching linux-sl7, linux-sl7-support and linux-image debs through APT. Ubuntu kernel hooks generate initrd and update the existing GRUB2 menu automatically. Keep the currently working kernel and Secure Boot enabled. APT subscribers receive candidates at https://mirrors.5cena.cc/; stable promotion requires hardware validation. See README.zh-CN.md for certificate enrollment and setup. The unsigned bundle remains available for independent signing and reproducibility.
           EOF
           (cd dist && sha256sum -c SHA256SUMS && sha256sum -c SIGNING-SHA256SUMS)
           (cd dist && sha256sum *.deb *.tar.zst BUILD.json SIGNING.json > RELEASE-SHA256SUMS)
@@ -168,7 +186,7 @@ jobs:
           gh release edit "$RELEASE_TAG" --repo "$GH_REPO" --draft=false --prerelease
 
   notify:
-    needs: [resolve, build, sign, publish]
+    needs: [resolve, build, sign, validate-packages, publish]
     if: ${{ always() && (failure() || needs.publish.result == 'success') }}
     runs-on: ubuntu-24.04-arm
     permissions:
@@ -182,5 +200,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           BUILD_RESULT: ${{ needs.publish.result }}
-          JOB_RESULTS: resolve=${{ needs.resolve.result }}, build=${{ needs.build.result }}, sign=${{ needs.sign.result }}, publish=${{ needs.publish.result }}
+          JOB_RESULTS: resolve=${{ needs.resolve.result }}, build=${{ needs.build.result }}, sign=${{ needs.sign.result }}, validate-packages=${{ needs.validate-packages.result }}, publish=${{ needs.publish.result }}
         run: python3 ci/notify.py

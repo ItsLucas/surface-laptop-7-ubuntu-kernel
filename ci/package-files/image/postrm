@@ -1,0 +1,25 @@
+#!/bin/sh
+set -eu
+version='@RELEASE@'
+case "$1" in
+    remove|purge)
+        if command -v linux-update-symlinks >/dev/null 2>&1; then
+            linux-update-symlinks remove "$version" "/boot/vmlinuz-$version"
+        fi
+        if command -v linux-run-hooks >/dev/null 2>&1; then
+            linux-run-hooks image postrm "$version" "/boot/vmlinuz-$version" -- "$@"
+        fi
+        # Also handle purge after removal of the initramfs generator itself.
+        rm -f "/boot/initrd.img-$version"
+        ;;
+esac
+if [ "$1" = purge ]; then
+    for name in modules.dep modules.dep.bin modules.alias modules.alias.bin \
+        modules.symbols modules.symbols.bin modules.softdep modules.weakdep \
+        modules.devname modules.builtin.bin modules.builtin.alias.bin; do
+        rm -f "/lib/modules/$version/$name"
+    done
+    if [ -d "/lib/modules/$version" ]; then
+        rmdir --ignore-fail-on-non-empty "/lib/modules/$version"
+    fi
+fi

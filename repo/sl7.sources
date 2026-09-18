@@ -1,0 +1,6 @@
+Types: deb
+URIs: https://mirrors.5cena.cc/
+Suites: stonking
+Components: candidate
+Architectures: arm64
+Signed-By: /etc/apt/keyrings/sl7-archive-keyring.asc

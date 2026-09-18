@@ -12,6 +12,7 @@ import struct
 import subprocess
 import tempfile
 from common import run, sha256, verify_files
+from packaging import build_packages
 
 
 def cert_der(path):
@@ -90,7 +91,7 @@ def main():
         list(executor.map(lambda p: sign_module(p, args.sign_file, args.module_key,
                                               args.module_cert, release), paths))
     run(['depmod', '-b', stage, release])
-    boot = stage / 'boot/sl7' / release; boot.mkdir(parents=True)
+    boot = stage / 'boot'; boot.mkdir(parents=True)
     inner = out / 'inner-signed.efi'
     run(['sbsign', '--key', args.boot_key, '--cert', args.boot_cert, '--output', inner,
          bundle / 'boot-inputs/inner-unsigned.efi'])
@@ -102,33 +103,20 @@ def main():
     run(['python3', stubble / 'bin/stubblify', 'build', '--stub=' + str(stubble / 'lib/stubble/stubble.efi'),
          '--linux=' + str(inner), '--devicetree-auto=' + str(bundle / 'boot-inputs/romulus13.dtb'),
          '--hwids=' + str(hwids), '--uname=' + release, '--no-sign-kernel', '--output=' + str(unsigned)])
-    run(['sbsign', '--key', args.boot_key, '--cert', args.boot_cert, '--output', boot / 'kernel.efi', unsigned])
-    run(['sbverify', '--cert', args.boot_cert, boot / 'kernel.efi'])
+    image = boot / ('vmlinuz-' + release)
+    run(['sbsign', '--key', args.boot_key, '--cert', args.boot_cert, '--output', image, unsigned])
+    run(['sbverify', '--cert', args.boot_cert, image])
     for name in ['config', 'System.map']:
-        shutil.copy2(bundle / 'boot-inputs' / name, boot / name)
+        shutil.copy2(bundle / 'boot-inputs' / name, boot / (name + '-' + release))
     metadata = stage / 'usr/share/sl7-kernel' / release; metadata.mkdir(parents=True)
     shutil.copy2(bundle / 'BUILD.json', metadata)
     shutil.copy2(args.module_cert, metadata / 'module-cert.pem')
     shutil.copy2(args.boot_cert, metadata / 'boot-cert.pem')
-    # No maintainer scripts: installation alone cannot select a kernel or reboot.
-    control = stage / 'DEBIAN'; control.mkdir()
-    installed_size = sum(p.stat().st_size for p in stage.rglob('*') if p.is_file()) // 1024 + 1
-    (control / 'control').write_text(f'''Package: linux-image-{release}
-Version: {data['package_version']}
-Architecture: arm64
-Maintainer: SL7 local kernel builder <noreply@localhost>
-Section: kernel
-Priority: optional
-Installed-Size: {installed_size}
-Depends: kmod, dracut-core
-Description: Locally signed Surface Laptop 7 Ubuntu kernel candidate
- Requires a locally generated initrd and an independently reviewed boot entry.
- Installation does not change the default kernel or create a boot entry.
-''')
-    deb = out / f"linux-image-{release}_{data['package_version']}_arm64.deb"
-    run(['dpkg-deb', '--build', '--root-owner-group', '-Zzstd', stage, deb])
-    (out / 'SHA256SUMS').write_text(sha256(deb) + '  ' + deb.name + '\n')
-    print(f'Signed candidate: {deb}\nNo installation, initrd generation, boot change or reboot was performed.')
+    (metadata / 'boot-cert.der').write_bytes(cert_der(args.boot_cert))
+    packages = build_packages(stage, out, data)
+    (out / 'SHA256SUMS').write_text(''.join(sha256(p) + '  ' + p.name + '\n' for p in packages))
+    print('Packages built:', ', '.join(p.name for p in packages))
+    print('No installation was performed. Installing these packages generates initrd and updates GRUB.')
 
 
 if __name__ == '__main__':

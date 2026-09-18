@@ -1,0 +1,10 @@
+#!/bin/sh
+set -eu
+version='@RELEASE@'
+case "$1" in
+    install|upgrade)
+        if command -v linux-run-hooks >/dev/null 2>&1; then
+            linux-run-hooks image preinst "$version" "/boot/vmlinuz-$version" -- "$@"
+        fi
+        ;;
+esac

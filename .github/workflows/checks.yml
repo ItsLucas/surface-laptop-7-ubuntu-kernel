@@ -11,3 +11,7 @@ jobs:
           persist-credentials: false
       - run: python3 -m unittest discover -s tests -v
       - run: bash -n ci/apt-setup.sh
+      - name: Exercise dpkg, dracut and GRUB in a disposable Ubuntu container
+        run: |
+          docker build -f tests/Packaging.Dockerfile -t sl7-package-check .
+          docker run --rm -v "$GITHUB_WORKSPACE:/workspace:ro" sl7-package-check

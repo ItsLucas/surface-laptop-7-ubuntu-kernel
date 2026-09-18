@@ -53,8 +53,12 @@ def main():
                  '--module-key', keys / 'module-key.pem', '--module-cert', keys / 'module-cert.pem',
                  '--boot-key', keys / 'boot-key.pem', '--boot-cert', keys / 'boot-cert.pem',
                  '--sign-file', '/usr/bin/kmodsign'])
-            package, = signed.glob('*.deb')
-            shutil.copy2(package, out / package.name)
+            packages = sorted(signed.glob('*.deb'))
+            if len(packages) != 3:
+                raise ValueError('Expected image, support and metapackage')
+            package, = signed.glob('linux-image-*.deb')
+            for item in packages:
+                shutil.copy2(item, out / item.name)
             fingerprints = {}
             for name in ['module-cert.pem', 'boot-cert.pem']:
                 der = subprocess.check_output(['openssl', 'x509', '-in', str(keys / name), '-outform', 'DER'])
@@ -63,6 +67,8 @@ def main():
             metadata = json.loads((bundle / 'BUILD.json').read_text())
             report = {'release': metadata['release'], 'source_commit': metadata['source_commit'],
                       'package': package.name, 'sha256': sha256(out / package.name),
+                      'packages': {p.name: sha256(out / p.name) for p in packages},
+                      'installation': 'ubuntu-kernel-hooks-dracut-grub',
                       'signed': True, 'hardware_tested': False, 'certificates_sha256_der': fingerprints,
                       'module_count': metadata['module_count'], 'all_module_signatures_verified': True,
                       'inner_and_outer_efi_signatures_verified': True,

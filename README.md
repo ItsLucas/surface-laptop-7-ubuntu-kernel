@@ -7,3 +7,11 @@ The version resolver follows Ubuntu's generic metapackage, including future **7.
 Configure the **public certificate** in repository variable `MODULE_CERT_PEM` and the two signing key/certificate pairs as encrypted Secrets in the main-only `secure-boot-signing` Environment. The separate signing job verifies signatures and handles keys only in a network-disabled container; PRs and compilation jobs never receive them. This repository contains reusable patches and tooling, without machine firmware, calibration or network settings.
 
 [中文使用与维护说明](README.zh-CN.md) · [Patch provenance](PROVENANCE.md)
+
+The signed APT archive is **https://mirrors.5cena.cc/** (`stonking`, `arm64`,
+`candidate` / `stable`). Install the `linux-sl7` metapackage to follow updates.
+The image package uses Ubuntu kernel hooks to generate initrd with dracut and
+refresh the existing GRUB2 menu; old kernels remain available for rollback.
+The support package preserves machine-local firmware and settings. Existing
+Secure Boot certificate enrollment is still required; no headers are provided yet.
+See the Chinese guide for setup and [archive operations](repo/README.md) for deployment.

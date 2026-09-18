@@ -29,10 +29,10 @@ def patches(root=ROOT):
 
 def recipe_hash(cert_pem, root=ROOT):
     h = hashlib.sha256()
-    inputs = [root / 'patches/series', *patches(root), *sorted((root / 'ci').glob('*')),
+    inputs = [root / 'patches/series', *patches(root), *sorted((root / 'ci').rglob('*')),
               *sorted((root / '.github/workflows').glob('*.yml'))]
     for p in inputs:
-        if p.is_file():
+        if p.is_file() and '__pycache__' not in p.parts and p.suffix != '.pyc':
             h.update(str(p.relative_to(root)).encode() + b'\0' + p.read_bytes() + b'\0')
     h.update(cert_pem.encode())
     return h.hexdigest()
