@@ -12,3 +12,16 @@ Baseline reviewed on Ubuntu source `linux 7.2.0-5.5`, Microsoft Surface Laptop 7
 The original three-patch maintenance archive is [ItsLucas/surface-laptop-7-linux-maintenance](https://github.com/ItsLucas/surface-laptop-7-linux-maintenance). Existing patch headers and authorship are retained; no contributor sign-offs are fabricated. Kernel and device-tree changes retain the licenses of their respective upstream files. New CI scripts and tests are provided under GPL-2.0-only.
 
 Ubuntu source, buildinfo versions and download URLs, the exact recipe commit, all patch hashes, public-certificate fingerprint, toolchain inventory and source package checksums are included in each `BUILD.json`. Reproduce using the repository at that commit and the recorded Ubuntu packages. No proprietary firmware is distributed by this pipeline.
+
+## PLD hwmon modules
+
+The original GPL-2.0-only implementation in `drivers/qcom-pld-power/` was developed
+from locally observed Windows EMI metadata, static interface analysis of the
+installed Qualcomm PEP driver, and Linux read-only/affinity/suspend experiments.
+It is built as two external modules against each candidate kernel's generated
+ABI; it is not a copied Windows driver or an upstream-merged kernel patch.
+
+The protocol/resource evidence, driver hash, units, test scope and unresolved
+questions are recorded in [`PROTOCOL.md`](drivers/qcom-pld-power/PROTOCOL.md) and
+[`pld-power-validation.md`](docs/pld-power-validation.md). No proprietary binaries,
+disassembly, raw device captures, private keys or firmware images are distributed.

@@ -86,10 +86,19 @@ def main():
     if observed != data['release']:
         raise RuntimeError(f'Unexpected kernel release {observed}')
     run(['ccache', '--zero-stats'])
+    pld_source = ROOT / 'drivers/qcom-pld-power'
+    pld_output = work / 'pld-output'
+    pld_make = make + ['M=' + str(pld_source), 'MO=' + str(pld_output),
+                      'W=1', 'KCFLAGS=-Werror']
+    run(['python3', '-m', 'unittest', 'discover', '-s', ROOT / 'tests',
+         '-p', 'test_pld_power.py', '-v'])
     try:
         with (logs / 'build.log').open('w') as log:
             run(make + ['-j' + str(min(os.cpu_count() or 2, 4)), 'Image', 'modules', 'vmlinuz.efi',
                         'qcom/x1e80100-microsoft-romulus13.dtb'], stdout=log, stderr=subprocess.STDOUT)
+            # Build these sources against the exact generated kernel ABI. The
+            # ordinary signing job signs them with the rest of the modules.
+            run(pld_make + ['-j2', 'modules'], stdout=log, stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError:
         print('Kernel build failed; last 100 build.log lines:', flush=True)
         from collections import deque
@@ -107,6 +116,10 @@ def main():
         run(make + ['-j4', 'modules_install', 'INSTALL_MOD_PATH=' + str(stage), 'INSTALL_MOD_STRIP=1',
                     'CONFIG_MODULE_SIG_ALL=', 'CONFIG_MODULE_COMPRESS_ALL=', 'DEPMOD=/bin/true'],
             stdout=log, stderr=subprocess.STDOUT)
+        run(pld_make + ['modules_install', 'INSTALL_MOD_PATH=' + str(stage),
+                        'INSTALL_MOD_DIR=updates/sl7', 'INSTALL_MOD_STRIP=1',
+                        'CONFIG_MODULE_SIG_ALL=', 'CONFIG_MODULE_COMPRESS_ALL=',
+                        'DEPMOD=/bin/true'], stdout=log, stderr=subprocess.STDOUT)
     modules = stage / 'lib/modules' / data['release']
     for name in ['build', 'source']:
         p = modules / name
@@ -119,7 +132,8 @@ def main():
         if p.read_bytes().endswith(b'~Module signature appended~\n'):
             raise RuntimeError('Unexpected signed module in unsigned bundle')
     run(['depmod', '-b', stage, data['release']])
-    required = ['ath12k', 'spi-hid', 'spi-geni-qcom', 'gpi', 'surface_aggregator']
+    required = ['ath12k', 'spi-hid', 'spi-geni-qcom', 'gpi', 'surface_aggregator',
+                'qcom_pld_power', 'sl7_pld_device']
     for name in required:
         if not list(modules.rglob(name + '.ko')):
             raise RuntimeError('Missing hardware module: ' + name)
@@ -137,6 +151,11 @@ def main():
     shutil.copytree(ROOT / 'ci', bundle / 'tools', ignore=shutil.ignore_patterns('__pycache__'))
     shutil.copy2(output / 'scripts/sign-file', bundle / 'tools/sign-file')
     data.update(module_count=len(module_paths), signed=False, hardware_tested=False,
+                external_modules={'qcom-pld-power': {
+                    'modules': ['qcom_pld_power', 'sl7_pld_device'],
+                    'source_sha256': {str(p.relative_to(pld_source)): sha256(p)
+                                      for p in sorted(pld_source.iterdir())
+                                      if p.suffix in {'.c', '.h'} or p.name == 'Makefile'}}},
                 patch_sha256={p.name: sha256(p) for p in patches(kernel=data['kernel'])},
                 patch_paths=[str(p.relative_to(ROOT / 'patches')) for p in patches(kernel=data['kernel'])],
                 stubble_deb_sha256=sha256(deb),

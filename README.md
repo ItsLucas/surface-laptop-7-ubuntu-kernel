@@ -29,3 +29,11 @@ refresh the existing GRUB2 menu; old kernels remain available for rollback.
 The support package preserves machine-local firmware and settings. Existing
 Secure Boot certificate enrollment is still required; no headers are provided yet.
 See the Chinese guide for setup and [archive operations](repo/README.md) for deployment.
+## Experimental power telemetry
+
+On the tested Romulus13 / BIOS 175.235.235, the next kernel build includes
+read-only Qualcomm PLD hwmon modules. They expose seven one-second average power
+channels to `sensors`, with stale-data and PM handling. See the
+[driver documentation](drivers/qcom-pld-power/README.md),
+[protocol evidence](drivers/qcom-pld-power/PROTOCOL.md), and
+[validation status](docs/pld-power-validation.md) before enabling it elsewhere.

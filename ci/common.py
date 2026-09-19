@@ -49,6 +49,7 @@ def recipe_hash(cert_pem, root=ROOT):
     inputs = [root / 'patches/series', root / 'patches/series-if-needed',
               *patches(root), *sorted((root / 'patches/variants').rglob('*.patch')),
               *sorted((root / 'ci').rglob('*')),
+              *sorted((root / 'drivers').rglob('*')),
               *sorted((root / 'tests').rglob('*')),
               *sorted((root / '.github/workflows').glob('*.yml'))]
     for p in inputs:

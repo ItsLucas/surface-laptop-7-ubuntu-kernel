@@ -109,3 +109,31 @@ sudo python3 ci/sign-local.py \
 云端使用GitHub ARM64标准runner、固定digest的Ubuntu26.10基础容器，并从APT获取当前Ubuntu工具链。保留官方debug/BTF配置；构建前释放临时runner的预装SDK空间，空间不足就失败。公开仓库标准runner免费，产物存储仍应定期管理。Actions附件保留7/14天，Release保留以便回退。
 
 参考：[Ubuntu内核构建](https://documentation.ubuntu.com/kernel/how-to/develop-customise/build-kernel/)、[GitHub托管runner](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)。
+## X1E 功率遥测（实验性）
+
+新增源码位于 [`drivers/qcom-pld-power`](drivers/qcom-pld-power/README.md)，包含
+`qcom_pld_power`（hwmon）和 `sl7_pld_device`（限定板型的设备注册）。已验证
+Romulus13 / X1E-80-100 / BIOS 175.235.235 / 7.3.0-5-sl7.8.1；不据此宣称支持其他
+X1E 笔记本、15 英寸机型或其他固件。完整接口证据见 [PROTOCOL.md](drivers/qcom-pld-power/PROTOCOL.md)，
+测试范围见 [验证记录](docs/pld-power-validation.md)。
+
+包含此功能的新内核发布后，支持包的 `modules-load.d` 配置会请求开机加载，
+同时保留 DMI/udev 匹配；模块内部仍检查板型、固件及 EFI 资源。也可以手动执行：
+
+```sh
+sudo modprobe sl7_pld_device
+sensors 'qcom_pld_power-*'
+```
+
+无需运行 `sensors-detect`，无需修改 lm-sensors。输出三个 CPU 簇、GPU、PSU_USB、
+USBC_TOTAL、SYS 的一秒平均功率，sysfs 单位为 µW。SYS 和 USB 通道不能相加，
+这些数据也不是已证实的硬件累计能量计数器或经过外部仪表校准的测量值。
+
+采样使用可延后的每秒缓存刷新，不为它单独唤醒空闲 CPU；读取不等待固件发布。
+睡眠前停止工作，恢复后重新确认计数前进。刚加载/唤醒或长时间空闲后，可能短暂返回
+`ENODATA`，避免把旧值显示成当前功率。两次手动睡眠测试和只读接口检查已完成；
+Linux-only 冷启动仍待验证。
+
+两个模块均由 Actions 对当次内核的实际 ABI 编译、沿用现有签名流程，放进
+`linux-image` 包的 `updates/sl7`。驱动源码参与构建指纹；接口变化导致编译失败时会走
+已有失败通知流程。源码、自动测试和脱敏的协议事实公开，本机原始日志及 Windows 驱动不公开。
