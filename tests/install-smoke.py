@@ -105,6 +105,10 @@ def assert_installed(release):
     if Path('/etc/default/grub.d/zz-sl7-apt-follow.cfg').exists():
         first_entry = menu.split("menuentry ", 1)[1].split('\n}', 1)[0]
         assert 'vmlinuz-' + release in first_entry
+        assert 'devicetree' not in first_entry
+    # flash-kernel's real DTB remains; only GRUB auto-discovery aliases vanish.
+    assert not Path('/boot/dtb-' + release).is_symlink()
+    assert not Path('/boot/dtb').is_symlink()
     run('grub-script-check', '/boot/grub/grub.cfg')
     return menu
 

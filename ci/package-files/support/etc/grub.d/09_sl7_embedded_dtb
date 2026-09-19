@@ -1,0 +1,6 @@
+#!/bin/sh
+# Package removal may leave this conffile until purge.
+set -eu
+helper=/usr/lib/sl7-kernel/grub-dtb-aliases
+[ -x "$helper" ] || exit 0
+exec "$helper"

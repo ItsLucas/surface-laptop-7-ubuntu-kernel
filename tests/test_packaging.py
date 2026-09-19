@@ -4,6 +4,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import runpy
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -14,6 +15,33 @@ from pe_fixture import image_with_dtb
 
 
 class PackagingTests(unittest.TestCase):
+    def test_grub_dtb_alias_cleanup_keeps_payloads_and_stock_links(self):
+        helper = ROOT / 'ci/package-files/support/usr/lib/sl7-kernel/grub-dtb-aliases'
+        cleanup = runpy.run_path(str(helper))['remove_aliases']
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); boot = root / 'boot'; boot.mkdir()
+            release = '7.3.0-5-sl7.10.1'
+            (boot / ('vmlinuz-' + release)).write_text('signed-efi-fixture')
+            provided = root / 'usr/lib' / ('linux-image-' + release) / ROMULUS_DTB
+            provided.parent.mkdir(parents=True); provided.write_bytes(b'dtb')
+            for version in [release, '7.4.0-1-generic']:
+                dtb = boot / 'dtbs' / version / ROMULUS_DTB
+                dtb.parent.mkdir(parents=True); dtb.write_bytes(b'dtb')
+                (boot / ('dtb-' + version)).symlink_to(dtb.relative_to(boot))
+            # Also handle /boot/dtb recreated by a later stock-kernel install.
+            (boot / 'dtb').symlink_to('dtb-7.4.0-1-generic')
+            self.assertEqual(len(cleanup(root)), 2)
+            self.assertFalse((boot / ('dtb-' + release)).is_symlink())
+            self.assertTrue((boot / 'dtb-7.4.0-1-generic').is_file())
+            self.assertEqual(provided.read_bytes(), b'dtb')
+            self.assertEqual((boot / 'dtbs' / release / ROMULUS_DTB).read_bytes(), b'dtb')
+            self.assertEqual(cleanup(root), [])
+            # A user-created file is never removed to suppress a GRUB warning.
+            (boot / 'dtb').write_text('custom-dtb')
+            with self.assertRaises(RuntimeError):
+                cleanup(root)
+            self.assertEqual((boot / 'dtb').read_text(), 'custom-dtb')
+
     def test_real_package_layout_and_dependencies(self):
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp)

@@ -92,7 +92,7 @@ def build_packages(stage, out, data):
 
     support = out / 'support-package'
     shutil.copytree(TEMPLATES / 'support', support)
-    control(support, 'linux-sl7-support', version, 'all', 'dracut, grub2-common',
+    control(support, 'linux-sl7-support', version, 'all', 'dracut, grub2-common, python3',
             'Surface Laptop 7 initramfs and GRUB integration\n'
             ' Keeps machine-local firmware and boot arguments, adds the SL7 SPI\n'
             ' drivers to SL7 initramfs images and retains installed SL7 kernels.')

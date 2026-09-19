@@ -1,0 +1,49 @@
+#!/usr/bin/python3
+"""Keep flash-kernel's DTBs, suppress GRUB's external-DTB aliases for SL7 EFI."""
+from pathlib import Path
+import re
+
+DTB = 'qcom/x1e80100-microsoft-romulus13.dtb'
+
+
+def remove_aliases(root=Path('/')):
+    boot = root / 'boot'
+    managed = []
+    for image in boot.glob('vmlinuz-*-sl7.*'):
+        release = image.name.removeprefix('vmlinuz-')
+        if not re.fullmatch(r'\d+\.\d+\.\d+-\d+-sl7\.\d+\.\d+', release):
+            continue
+        # The image package extracts this DTB from its signed .dtbauto section.
+        if image.is_file() and (root / 'usr/lib' / ('linux-image-' + release) / DTB).is_file():
+            managed.append(release)
+    if not managed:
+        return []
+
+    aliases = []
+    for release in managed:
+        alias = boot / ('dtb-' + release)
+        if alias.exists() or alias.is_symlink():
+            expected = boot / 'dtbs' / release / DTB
+            if not alias.is_symlink() or alias.resolve() != expected.resolve():
+                raise RuntimeError(f'Unrecognized DTB alias; preserve and review: {alias}')
+            aliases.append(alias)
+
+    # 10_linux also falls back to unversioned /boot/dtb for every kernel.
+    # Keep stock kernels' per-version links, but remove this generated fallback.
+    generic = boot / 'dtb'
+    if generic.exists() or generic.is_symlink():
+        target = generic.resolve()
+        if (not generic.is_symlink() or not target.is_relative_to(boot / 'dtbs')
+                or target.name != Path(DTB).name):
+            raise RuntimeError(f'Unrecognized global DTB alias; preserve and review: {generic}')
+        aliases.append(generic)
+
+    # Validate the entire set before changing anything.
+    for alias in aliases:
+        alias.unlink()
+    return aliases
+
+
+if __name__ == '__main__':
+    for alias in remove_aliases():
+        print(f'# SL7 signed embedded DTB: removed generated alias {alias}')
