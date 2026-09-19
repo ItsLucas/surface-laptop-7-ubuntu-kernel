@@ -72,7 +72,8 @@ def main():
     # Ubuntu's ABI does not include upstream -rcN; keep it in BUILD.json instead.
     make = ['make', '-C', source, 'O=' + str(output), 'EXTRAVERSION=',
             'LOCALVERSION=-' + data['abi'] + '-sl7.' + data['release'].split('-sl7.')[1],
-            f'CC=ccache gcc-{gcc_major}', f'HOSTCC=ccache gcc-{gcc_major}', f'HOSTCXX=ccache g++-{gcc_major}',
+            # Rust uses HOSTCC as a single linker executable, not a shell command.
+            f'CC=ccache gcc-{gcc_major}', f'HOSTCC=gcc-{gcc_major}', f'HOSTCXX=g++-{gcc_major}',
             'RUSTC=' + rustc, 'BINDGEN=bindgen']
     run(make + ['rustavailable'])
     run(make + ['olddefconfig'])
@@ -89,6 +90,12 @@ def main():
         with (logs / 'build.log').open('w') as log:
             run(make + ['-j' + str(min(os.cpu_count() or 2, 4)), 'Image', 'modules', 'vmlinuz.efi',
                         'qcom/x1e80100-microsoft-romulus13.dtb'], stdout=log, stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError:
+        print('Kernel build failed; last 100 build.log lines:', flush=True)
+        from collections import deque
+        with (logs / 'build.log').open(errors='replace') as log:
+            print(''.join(deque(log, maxlen=100)), flush=True)
+        raise
     finally:
         # Report cache effectiveness even when compilation fails, without masking its error.
         stats = subprocess.run(['ccache', '--show-stats'], capture_output=True, text=True)
