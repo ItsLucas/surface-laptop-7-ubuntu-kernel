@@ -7,8 +7,9 @@
 - 从发行版 `linux-image-generic` 的当前候选依赖解析内核版本和ABI，再取**同版本**的 `linux-source-*` 与 `linux-buildinfo-*-generic`。没有固定7.2；Ubuntu切换到7.3时会自动选择7.3源码和配置。
 - 只使用stonking、stonking-updates、stonking-security，不跟踪proposed，也不会自动换到下一版Ubuntu。
 - Ubuntu版本、补丁、构建脚本、workflow或公开模块证书改变才重建。手动选择force可强制重建；每次产物的内核release都唯一，便于并存。
-- 五个补丁按series严格依次应用，`--fuzz=0`。任何补丁冲突、源/config不同步、工具链变化或编译失败，都使构建失败；不自动跳过、反向应用或让AI自动改补丁。
+- 五个必需硬件补丁按series严格依次应用，`--fuzz=0`。0006 QRTR回退另列于`series-if-needed`：正向预检成功才应用，或用反向dry-run确认全部修改后代码已存在才记为无需应用；不实际反向改源码。未知冲突、部分应用、源/config不同步、工具链变化或编译失败均停止并通知，不自动改补丁。
 - 已审阅的7.3 GENI适配位于`patches/variants/7.3/`，按内核系列替换0002，7.2继续使用原版。上游合入状态和X1E电源改进见[7.3核对记录](docs/7.3-upstream-audit.zh-CN.md)。
+- 7.3的Wi-Fi睡眠恢复回归通过回退QRTR注册时握手改动处理，保留原PCIe省电策略；一次实机deep恢复成功，证据与适用限制见[恢复诊断记录](docs/7.3-wifi-resume.zh-CN.md)。`BUILD.json`同时记录补丁输入和实际应用/无需应用结果。
 - 失败时自动创建/更新一个GitHub Issue，`@仓库所有者`并附运行链接。通知邮件/推送依赖所有者的GitHub通知设置。后续成功构建自动关闭该Issue。GitHub基础设施整体故障时通知任务也可能无法运行。
 - 成功后发布 **prerelease / signed candidate**，含校验清单、官方输入版本、补丁哈希、构建日志、签名后的内核deb及可独立重签的未签名构建包；编译和验签成功不代表已通过实机验收。
 
@@ -53,6 +54,17 @@ sudo apt install linux-sl7
 
 安装包使用标准`/boot/vmlinuz-版本`、`/boot/config-版本`和`/boot/System.map-版本`布局。内核postinst调用Ubuntu的`linux-run-hooks`，由发行版dracut生成`/boot/initrd.img-版本`，再由GRUB钩子更新菜单。升级并存；卸载清理对应initrd及菜单；当前运行内核的删除交给Ubuntu的`linux-check-removal`。生成失败会使包配置失败，可在修正问题后用`sudo dpkg --configure -a`重试，不会自动重启。
 
+若希望默认启动项也自动跟随APT安装的SL7内核，安装新版`linux-sl7-support`后可明确启用：
+
+```sh
+printf 'SL7_FOLLOW_APT=1\n' | sudo tee /etc/default/grub.d/zz-sl7-apt-follow.cfg
+sudo update-grub
+```
+
+该设置让标准Ubuntu首项选择最新、同时具有内核与initrd的`*-sl7.数字.数字`版本；官方generic即使版本更高也不会抢占首项。旧内核仍在高级菜单中，原SL7回退项保留。删除这份启用文件并运行`update-grub`可恢复原有默认策略。未启用时继续保留管理员的自定义默认项。此选项会改变下一次默认启动内核，启用前应完成当前候选的签名和硬件核对。
+
+后续更新使用`sudo apt update && sudo apt install linux-sl7`，或执行允许安装新依赖的`sudo apt upgrade`；元包拉取新的版本化image和support包。确认`dpkg --audit`无未配置包后再重启。仓库每小时从已完成GitHub Release同步候选，因此Actions完成后APT出现新版本可能有延迟。
+
 设备树同时随包安装到`/usr/lib/linux-image-版本/qcom/x1e80100-microsoft-romulus13.dtb`，供发行版`flash-kernel`安装钩子使用。它直接提取自已签名EFI的`.dtbauto`，与镜像内设备树逐字节一致；不重新编译或修改签名镜像。安装测试包含`flash-kernel`及Romulus13机型配置，以覆盖这条实际安装路径。早期`sl7.5.1`包漏装了这份独立DTB，可能卡在`zz-flash-kernel`；这是打包缺陷，不要求重装系统。
 
 SL7专用dracut配置只作用于`*-sl7.*`版本，加入SPI HID/GPI驱动并保留本机现有Wi-Fi board覆盖文件，不向官方内核强加未提供的模块。现有固件、dracut配置、GRUB板级参数、iptsd及校准继续沿用。两个已知旧固定默认项`sl7-combined-kernel`和`sl7-spi-touchscreen-test`会迁移到GRUB默认第一项；其他自定义默认值（包括saved）保留。旧菜单项也保留。旧SL7内核不会被autoremove自动删除，验收后可显式`apt purge linux-image-具体版本`释放空间。
@@ -86,6 +98,7 @@ sudo python3 ci/sign-local.py \
 | 0003 | 本机GTCH SPI触摸屏设备树 |
 | 0004 | SPI HID系统睡眠、关机和电源生命周期 |
 | 0005 | GPIO供电/reset职责分离、触屏跟随内置屏幕省电 |
+| 0006（按源码状态） | 回退7.3 QRTR HELLO改动，恢复Wi-Fi固件在系统睡眠后的服务发现 |
 
 来源见[PROVENANCE.md](PROVENANCE.md)。0004/0005原补丁说明中的test字样来自2026-09-15阶段归档；之后已在基线7.2.0-5.5上使用，但不意味着任意新版本自动通过实测。13英寸与15英寸的设备树不可混用。
 

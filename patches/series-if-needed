@@ -1,0 +1,2 @@
+# Reviewed postimage detection only; unknown conflicts must fail the build.
+0006-revert-qrtr-register-only-hello.patch

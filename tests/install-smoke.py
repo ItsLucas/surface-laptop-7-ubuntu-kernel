@@ -102,6 +102,9 @@ def assert_installed(release):
     assert 'set default="0"' in menu
     assert 'clk_ignore_unused pd_ignore_unused cma=128M efi=noruntime' in menu
     assert '11111111-2222-3333-4444-555555555555' in menu
+    if Path('/etc/default/grub.d/zz-sl7-apt-follow.cfg').exists():
+        first_entry = menu.split("menuentry ", 1)[1].split('\n}', 1)[0]
+        assert 'vmlinuz-' + release in first_entry
     run('grub-script-check', '/boot/grub/grub.cfg')
     return menu
 
@@ -114,6 +117,11 @@ def main():
         raise SystemExit('Run only as root in a disposable container with no host boot/device mounts')
     simulate_devices()
     first, second = '7.1.0-1-sl7.900.1', '7.1.0-1-sl7.901.1'
+    write('/etc/default/grub.d/zz-sl7-apt-follow.cfg', 'SL7_FOLLOW_APT=1\n')
+    # A newer stock kernel must remain available without displacing SL7.
+    generic_image, _ = image_with_dtb()
+    Path('/boot/vmlinuz-9.9.0-99-generic').write_bytes(generic_image)
+    write('/boot/initrd.img-9.9.0-99-generic', 'stock-fallback-fixture\n')
     install(fixture(first, '7.1.0-1.1+sl7.900.1'))
     before = assert_installed(first)
     second_packages = fixture(second, '7.1.0-1.1+sl7.901.1')

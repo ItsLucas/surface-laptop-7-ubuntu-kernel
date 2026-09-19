@@ -55,7 +55,7 @@ def main():
     cert_der = work / 'module-cert.der'
     run(['openssl', 'x509', '-in', cert, '-outform', 'DER', '-out', cert_der])
     data['module_cert_der_sha256'] = sha256(cert_der)
-    apply_patches(source, logs / 'patches.log', kernel=data['kernel'])
+    data['patch_application'] = apply_patches(source, logs / 'patches.log', kernel=data['kernel'])
     config = source / 'scripts/config'
     run([config, '--file', output / '.config', '--module', 'SPI_HID',
          '--set-str', 'MODULE_SIG_KEY', 'certs/sl7-module-cert.pem',

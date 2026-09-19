@@ -49,6 +49,49 @@ class VersionTests(unittest.TestCase):
 
 
 class PatchTests(unittest.TestCase):
+    def test_reviewed_optional_patch_handles_both_known_states(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d); (root / 'patches').mkdir(); source = root / 'source'; source.mkdir()
+            (root / 'patches/series').write_text('001.patch\n')
+            (root / 'patches/series-if-needed').write_text('002.patch\n')
+            (root / 'patches/001.patch').write_text('--- a/base\n+++ b/base\n@@ -1 +1 @@\n-old\n+new\n')
+            optional = root / 'patches/002.patch'
+            optional.write_text('--- a/hello\n+++ b/hello\n@@ -1 +1 @@\n-broken\n+working\n')
+            for content, status in [('broken\n', 'applied'), ('working\n', 'not-needed')]:
+                (source / 'base').write_text('old\n'); (source / 'hello').write_text(content)
+                results = apply_patches(source, root / 'log', root, kernel='7.4.0')
+                self.assertEqual((source / 'hello').read_text(), 'working\n')
+                self.assertEqual(results[-1], {'path': '002.patch', 'status': status})
+            before = recipe_hash('cert', root)
+            optional.write_text(optional.read_text() + '\n')
+            self.assertNotEqual(before, recipe_hash('cert', root))
+
+    def test_optional_conflict_or_partial_application_is_not_silently_skipped(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d); (root / 'patches').mkdir(); source = root / 'source'; source.mkdir()
+            (root / 'patches/series').write_text('001.patch\n')
+            (root / 'patches/series-if-needed').write_text('002.patch\n')
+            (root / 'patches/001.patch').write_text('--- a/base\n+++ b/base\n@@ -1 +1 @@\n-old\n+new\n')
+            (root / 'patches/002.patch').write_text(
+                '--- a/first\n+++ b/first\n@@ -1 +1 @@\n-broken\n+working\n'
+                '--- a/second\n+++ b/second\n@@ -1 +1 @@\n-broken\n+working\n')
+            for first, second in [('unknown\n', 'unknown\n'), ('working\n', 'broken\n')]:
+                (source / 'base').write_text('old\n')
+                (source / 'first').write_text(first); (source / 'second').write_text(second)
+                with self.assertRaises(subprocess.CalledProcessError):
+                    apply_patches(source, root / 'log', root)
+                self.assertEqual((source / 'first').read_text(), first)
+                self.assertEqual((source / 'second').read_text(), second)
+
+    def test_optional_manifest_cannot_duplicate_required_patch(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d); (root / 'patches').mkdir()
+            (root / 'patches/series').write_text('001.patch\n')
+            (root / 'patches/series-if-needed').write_text('001.patch\n')
+            with self.assertRaises(ValueError):
+                list(patches(root, '7.3.0'))
+
     def test_series_override_preserves_baseline_and_fails_on_conflict(self):
         import subprocess
         with tempfile.TemporaryDirectory() as d:

@@ -16,26 +16,38 @@ def sha256(path):
         return hashlib.file_digest(f, 'sha256').hexdigest()
 
 
+def series_names(root, filename, optional=False):
+    path = root / 'patches' / filename
+    if optional and not path.exists():
+        return []
+    names = [s.strip() for s in path.read_text().splitlines()
+             if s.strip() and not s.lstrip().startswith('#')]
+    if (not names and not optional) or len(set(names)) != len(names):
+        raise ValueError('Empty/duplicate patch series')
+    if any(not re.fullmatch(r'[a-zA-Z0-9_.-]+\.patch', name) for name in names):
+        raise ValueError('Unsafe patch name')
+    return names
+
+
 def patches(root=ROOT, kernel=None):
     series = None
     if kernel is not None:
         if not re.fullmatch(r'\d+\.\d+(?:\.\d+)?', kernel):
             raise ValueError('Invalid kernel version for patch selection')
         series = '.'.join(kernel.split('.')[:2])
-    names = [s.strip() for s in (root / 'patches/series').read_text().splitlines()
-             if s.strip() and not s.startswith('#')]
-    if not names or len(set(names)) != len(names):
-        raise ValueError('Empty/duplicate patch series')
+    names = (series_names(root, 'series') +
+             series_names(root, 'series-if-needed', optional=True))
+    if len(set(names)) != len(names):
+        raise ValueError('Duplicate patch across series manifests')
     for name in names:
-        if not re.fullmatch(r'[a-zA-Z0-9_.-]+\.patch', name):
-            raise ValueError('Unsafe patch name')
         variant = root / 'patches/variants' / series / name if series else None
         yield variant if variant is not None and variant.is_file() else root / 'patches' / name
 
 
 def recipe_hash(cert_pem, root=ROOT):
     h = hashlib.sha256()
-    inputs = [root / 'patches/series', *patches(root), *sorted((root / 'patches/variants').rglob('*.patch')),
+    inputs = [root / 'patches/series', root / 'patches/series-if-needed',
+              *patches(root), *sorted((root / 'patches/variants').rglob('*.patch')),
               *sorted((root / 'ci').rglob('*')),
               *sorted((root / '.github/workflows').glob('*.yml'))]
     for p in inputs:
@@ -63,12 +75,32 @@ def release_name(kernel, abi, run_number, attempt):
 
 
 def apply_patches(source, log, root=ROOT, kernel=None):
+    reviewed_optional = set(series_names(root, 'series-if-needed', optional=True))
+    results = []
     with Path(log).open('w') as out:
         for patch in patches(root, kernel=kernel):
-            out.write(f'Applying {patch.relative_to(root / "patches")}\n'); out.flush()
+            rel = str(patch.relative_to(root / 'patches'))
+            out.write(f'Checking {rel}\n'); out.flush()
             args = ['patch', '--batch', '--forward', '--fuzz=0', '-p1', '-i', patch]
-            run(args + ['--dry-run'], cwd=source, stdout=out, stderr=subprocess.STDOUT)
+            probe = subprocess.run(args + ['--dry-run'], cwd=source,
+                                   stdout=out, stderr=subprocess.STDOUT)
+            if probe.returncode:
+                if patch.name in reviewed_optional:
+                    # Recognize all postimage hunks without changing any source.
+                    # Unknown/partially applied upstream changes still fail closed.
+                    reverse = ['patch', '--batch', '--force', '--reverse', '--dry-run',
+                               '--fuzz=0', '-p1', '-i', patch]
+                    check = subprocess.run(reverse, cwd=source,
+                                           stdout=out, stderr=subprocess.STDOUT)
+                    if check.returncode == 0:
+                        out.write(f'Not needed: {rel} (all postimage hunks verified)\n')
+                        out.flush()
+                        results.append({'path': rel, 'status': 'not-needed'})
+                        continue
+                raise subprocess.CalledProcessError(probe.returncode, args + ['--dry-run'])
             run(args, cwd=source, stdout=out, stderr=subprocess.STDOUT)
+            results.append({'path': rel, 'status': 'applied'})
+    return results
 
 
 def verify_files(directory):

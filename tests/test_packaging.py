@@ -87,6 +87,27 @@ class PackagingTests(unittest.TestCase):
             hook.write_text('new')
             self.assertNotEqual(before, recipe_hash('certificate', root))
 
+    def test_follow_apt_selects_newest_complete_sl7_and_keeps_fallback(self):
+        conf = ROOT / 'ci/package-files/support/etc/default/grub.d/zzzz-sl7-kernel.cfg'
+        with tempfile.TemporaryDirectory() as tmp:
+            boot = Path(tmp)
+            releases = ['7.3.0-5-sl7.9.1', '7.3.0-5-sl7.10.1',
+                        '7.4.0-1-sl7.11.1', '7.5.0-1-generic',
+                        '7.3.0-5-sl7.10.1.old']
+            for release in releases:
+                (boot / ('vmlinuz-' + release)).write_text('kernel')
+                if release != '7.4.0-1-sl7.11.1':
+                    (boot / ('initrd.img-' + release)).write_text('initrd')
+            def selected():
+                return subprocess.check_output(['sh', '-c',
+                    'SL7_FOLLOW_APT=0; . "$1"; sl7_latest_complete_kernel "$2"',
+                    'test', str(conf), str(boot)], text=True).strip()
+            self.assertEqual(selected(), str(boot / 'vmlinuz-7.3.0-5-sl7.10.1'))
+            (boot / 'initrd.img-7.4.0-1-sl7.11.1').write_text('initrd')
+            self.assertEqual(selected(), str(boot / 'vmlinuz-7.4.0-1-sl7.11.1'))
+            (boot / 'vmlinuz-7.4.0-1-sl7.11.1').unlink()
+            self.assertEqual(selected(), str(boot / 'vmlinuz-7.3.0-5-sl7.10.1'))
+
 
 if __name__ == '__main__':
     unittest.main()
