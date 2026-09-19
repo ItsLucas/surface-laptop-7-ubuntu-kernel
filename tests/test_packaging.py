@@ -9,7 +9,8 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'ci'))
 from common import recipe_hash
-from packaging import build_packages
+from packaging import build_packages, embedded_dtb, ROMULUS_DTB
+from pe_fixture import image_with_dtb
 
 
 class PackagingTests(unittest.TestCase):
@@ -18,12 +19,16 @@ class PackagingTests(unittest.TestCase):
             out = Path(tmp)
             stage = out / 'package'
             (stage / 'boot').mkdir(parents=True)
-            (stage / 'boot/vmlinuz-7.2.0-5-sl7.4.1').write_bytes(b'signed-image')
+            image, dtb = image_with_dtb()
+            kernel = stage / 'boot/vmlinuz-7.2.0-5-sl7.4.1'
+            kernel.write_bytes(image)
             with mock.patch('packaging.run') as build:
                 packages = build_packages(stage, out, {'release': '7.2.0-5-sl7.4.1',
                                                       'package_version': '7.2.0-5.5+sl7.4.1'})
             self.assertEqual(len(packages), 3)
             self.assertEqual(build.call_count, 3)
+            self.assertEqual((stage / 'usr/lib/linux-image-7.2.0-5-sl7.4.1' / ROMULUS_DTB).read_bytes(), dtb)
+            self.assertEqual(kernel.read_bytes(), image)
             self.assertIn('dracut, linux-sl7-support', (stage / 'DEBIAN/control').read_text())
             self.assertIn('linux-image-7.2.0-5-sl7.4.1 (= 7.2.0-5.5+sl7.4.1)',
                           (out / 'meta-package/DEBIAN/control').read_text())
@@ -32,6 +37,16 @@ class PackagingTests(unittest.TestCase):
                 self.assertTrue(os.access(script, os.X_OK))
                 self.assertNotIn('@RELEASE@', script.read_text())
                 subprocess.run(['sh', '-n', script], check=True)
+
+    def test_invalid_embedded_device_tree_stops_packaging(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            image, _ = image_with_dtb()
+            kernel = Path(tmp) / 'kernel.efi'
+            for corrupt in [b'not a PE', image[:500], image.replace(b'\xd0\x0d\xfe\xed', b'BAD!'),
+                            image.replace(b'microsoft,romulus13', b'microsoft,romulus15')]:
+                kernel.write_bytes(corrupt)
+                with self.assertRaises(ValueError):
+                    embedded_dtb(kernel)
 
     def test_dracut_config_scoped_to_sl7_and_keeps_existing_settings(self):
         conf = ROOT / 'ci/package-files/support/etc/dracut.conf.d/50-sl7.conf'

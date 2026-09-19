@@ -15,6 +15,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'ci'))
 from packaging import build_packages
+from pe_fixture import image_with_dtb
 
 
 def run(*args, **kw):
@@ -29,6 +30,7 @@ def write(path, contents, mode=0o644):
 
 
 def simulate_devices():
+    write('/etc/flash-kernel/machine', 'Microsoft Surface Laptop 7 (13.8 inch)\n')
     write('/usr/sbin/grub-probe', '''#!/usr/bin/python3
 import sys
 a = sys.argv[1:]
@@ -67,7 +69,10 @@ def fixture(release, version):
         run('gcc', '-c', '-o', modules / (name + '.ko'), source)
     for name in ['modules.builtin', 'modules.builtin.modinfo', 'modules.order']:
         (modules / name).write_text('')
-    write(stage / ('boot/vmlinuz-' + release), 'test EFI placeholder, never boot\n')
+    image, _ = image_with_dtb()
+    kernel = stage / ('boot/vmlinuz-' + release)
+    kernel.parent.mkdir(parents=True, exist_ok=True)
+    kernel.write_bytes(image)
     write(stage / ('boot/System.map-' + release), '')
     write(stage / ('boot/config-' + release), 'CONFIG_BLK_DEV_INITRD=y\nCONFIG_RD_ZSTD=y\nCONFIG_MODULES=y\n')
     return build_packages(stage, out, {'release': release, 'package_version': version})
@@ -83,6 +88,10 @@ def install(packages, check=True):
 
 
 def assert_installed(release):
+    dtb = 'qcom/x1e80100-microsoft-romulus13.dtb'
+    provided = Path('/usr/lib/linux-image-' + release) / dtb
+    installed = Path('/boot/dtbs') / release / dtb
+    assert provided.is_file() and installed.read_bytes() == provided.read_bytes()
     initrd = Path('/boot/initrd.img-' + release)
     assert initrd.stat().st_size > 0
     contents = subprocess.check_output(['lsinitrd', str(initrd)], text=True)

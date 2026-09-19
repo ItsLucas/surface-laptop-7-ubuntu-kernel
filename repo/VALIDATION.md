@@ -1,5 +1,22 @@
 # Deployment validation — 2026-09-18
 
+## 2026-09-19 packaging correction
+
+The original container tests below did not install `flash-kernel`. On the real
+Romulus13 system, its normal postinst hook failed because the signed Stubble image
+contained a DTB but the package omitted the separate versioned DTB searched by
+`flash-kernel`. This was a package/test coverage defect, not an unclean host.
+
+Packaging now extracts the exact FDT bytes from the signed `.dtbauto` section into
+`/usr/lib/linux-image-<release>/qcom/x1e80100-microsoft-romulus13.dtb`, leaving the
+EFI image unchanged. The container fixture now installs `flash-kernel`, identifies
+itself as Romulus13, and checks that the installed `/boot/dtbs/<release>/` copy
+matches the package-owned source across installation and reconfiguration.
+
+The local regression suite has 15 passing tests, including rejection of malformed
+or wrong-model embedded DTBs. Current container/hardware results must be checked
+separately; the earlier successful container runs did not cover this case.
+
 Endpoint: **https://mirrors.5cena.cc/sl7/**. The domain root is a general mirror
 landing page. Root-level `/dists/`, `/pool/`, `sl7.sources` and archive key paths
 return 404; the complete archive is under `/sl7/`.

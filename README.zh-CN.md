@@ -52,6 +52,8 @@ sudo apt install linux-sl7
 
 安装包使用标准`/boot/vmlinuz-版本`、`/boot/config-版本`和`/boot/System.map-版本`布局。内核postinst调用Ubuntu的`linux-run-hooks`，由发行版dracut生成`/boot/initrd.img-版本`，再由GRUB钩子更新菜单。升级并存；卸载清理对应initrd及菜单；当前运行内核的删除交给Ubuntu的`linux-check-removal`。生成失败会使包配置失败，可在修正问题后用`sudo dpkg --configure -a`重试，不会自动重启。
 
+设备树同时随包安装到`/usr/lib/linux-image-版本/qcom/x1e80100-microsoft-romulus13.dtb`，供发行版`flash-kernel`安装钩子使用。它直接提取自已签名EFI的`.dtbauto`，与镜像内设备树逐字节一致；不重新编译或修改签名镜像。安装测试包含`flash-kernel`及Romulus13机型配置，以覆盖这条实际安装路径。早期`sl7.5.1`包漏装了这份独立DTB，可能卡在`zz-flash-kernel`；这是打包缺陷，不要求重装系统。
+
 SL7专用dracut配置只作用于`*-sl7.*`版本，加入SPI HID/GPI驱动并保留本机现有Wi-Fi board覆盖文件，不向官方内核强加未提供的模块。现有固件、dracut配置、GRUB板级参数、iptsd及校准继续沿用。两个已知旧固定默认项`sl7-combined-kernel`和`sl7-spi-touchscreen-test`会迁移到GRUB默认第一项；其他自定义默认值（包括saved）保留。旧菜单项也保留。旧SL7内核不会被autoremove自动删除，验收后可显式`apt purge linux-image-具体版本`释放空间。
 
 APT源签名与Secure Boot信任是两套机制。原有机器已登记对应启动密钥，无需再次登记。新机器首次使用需通过`mokutil --test-key /usr/share/sl7-kernel/内核版本/boot-cert.der`检查，未登记时用`sudo mokutil --import`导入该文件并在重启的MOK界面确认；不要在完成登记前选择新内核，也不要关闭Secure Boot绕过。该源目前不提供headers/DKMS开发包，不替代机器固件和用户态配置。
