@@ -106,11 +106,16 @@ def assert_installed(release):
         first_entry = menu.split("menuentry ", 1)[1].split('\n}', 1)[0]
         assert 'vmlinuz-' + release in first_entry
         assert 'devicetree' not in first_entry
-    # flash-kernel's real DTB remains; only GRUB auto-discovery aliases vanish.
+    # A deferred flash-kernel trigger can recreate aliases after GRUB ran.
+    # A later manual regeneration must clean them again and keep the real DTB.
+    run('update-grub')
+    regenerated = Path('/boot/grub/grub.cfg').read_text()
+    first_entry = regenerated.split("menuentry ", 1)[1].split('\n}', 1)[0]
+    assert 'vmlinuz-' + release in first_entry and 'devicetree' not in first_entry
     assert not Path('/boot/dtb-' + release).is_symlink()
     assert not Path('/boot/dtb').is_symlink()
     run('grub-script-check', '/boot/grub/grub.cfg')
-    return menu
+    return regenerated
 
 
 def main():
@@ -123,9 +128,12 @@ def main():
     first, second = '7.1.0-1-sl7.900.1', '7.1.0-1-sl7.901.1'
     write('/etc/default/grub.d/zz-sl7-apt-follow.cfg', 'SL7_FOLLOW_APT=1\n')
     # A newer stock kernel must remain available without displacing SL7.
-    generic_image, _ = image_with_dtb()
+    generic_image, generic_dtb = image_with_dtb()
     Path('/boot/vmlinuz-9.9.0-99-generic').write_bytes(generic_image)
     write('/boot/initrd.img-9.9.0-99-generic', 'stock-fallback-fixture\n')
+    stock_dtb = Path('/usr/lib/linux-image-9.9.0-99-generic/qcom/x1e80100-microsoft-romulus13.dtb')
+    stock_dtb.parent.mkdir(parents=True)
+    stock_dtb.write_bytes(generic_dtb)
     install(fixture(first, '7.1.0-1.1+sl7.900.1'))
     before = assert_installed(first)
     second_packages = fixture(second, '7.1.0-1.1+sl7.901.1')

@@ -11,7 +11,7 @@ on:
         default: false
   push:
     branches: [main]
-    paths: ['ci/**', 'patches/**', '.github/workflows/kernel.yml']
+    paths: ['ci/**', 'patches/**', 'tests/**', '.github/workflows/kernel.yml']
 
 permissions:
   contents: read

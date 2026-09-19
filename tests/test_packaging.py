@@ -114,6 +114,10 @@ class PackagingTests(unittest.TestCase):
             self.assertEqual(before, recipe_hash('certificate', root))
             hook.write_text('new')
             self.assertNotEqual(before, recipe_hash('certificate', root))
+            before = recipe_hash('certificate', root)
+            (root / 'tests').mkdir()
+            (root / 'tests/install-smoke.py').write_text('new installation gate')
+            self.assertNotEqual(before, recipe_hash('certificate', root))
 
     def test_follow_apt_selects_newest_complete_sl7_and_keeps_fallback(self):
         conf = ROOT / 'ci/package-files/support/etc/default/grub.d/zzzz-sl7-kernel.cfg'
