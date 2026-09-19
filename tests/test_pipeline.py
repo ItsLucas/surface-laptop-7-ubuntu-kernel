@@ -7,7 +7,7 @@ import unittest
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'ci'))
-from common import apply_patches, image_release, release_name, sha256, verify_files
+from common import apply_patches, image_release, release_name, sha256, verify_files, patches, recipe_hash
 from resolve import resolve, has_candidate
 import notify
 
@@ -49,6 +49,28 @@ class VersionTests(unittest.TestCase):
 
 
 class PatchTests(unittest.TestCase):
+    def test_series_override_preserves_baseline_and_fails_on_conflict(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d); (root / 'patches/variants/7.3').mkdir(parents=True)
+            (root / 'patches/series').write_text('001.patch\n')
+            baseline = root / 'patches/001.patch'
+            variant = root / 'patches/variants/7.3/001.patch'
+            baseline.write_text('--- a/value\n+++ b/value\n@@ -1 +1 @@\n-old72\n+patched72\n')
+            variant.write_text('--- a/value\n+++ b/value\n@@ -1 +1 @@\n-old73\n+patched73\n')
+            self.assertEqual(list(patches(root, '7.2.0')), [baseline])
+            self.assertEqual(list(patches(root, '7.3.0')), [variant])
+            source = root / 'source'; source.mkdir(); (source / 'value').write_text('old73\n')
+            apply_patches(source, root / 'log', root, kernel='7.3.0')
+            self.assertEqual((source / 'value').read_text(), 'patched73\n')
+            self.assertIn('variants/7.3/001.patch', (root / 'log').read_text())
+            before = recipe_hash('public-cert', root)
+            variant.write_text(variant.read_text() + '\n')
+            self.assertNotEqual(before, recipe_hash('public-cert', root))
+            (source / 'value').write_text('changed-upstream\n')
+            with self.assertRaises(subprocess.CalledProcessError):
+                apply_patches(source, root / 'log', root, kernel='7.3.0')
+
     def test_conflict_stops_without_silently_skipping(self):
         import subprocess
         with tempfile.TemporaryDirectory() as d:

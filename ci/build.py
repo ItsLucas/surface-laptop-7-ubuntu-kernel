@@ -38,6 +38,9 @@ def main():
     tarball, = (unpack / 'usr/src').glob('linux-source-*.tar.*')
     run(['tar', '-xf', tarball, '-C', work])
     source = work / ('linux-source-' + data['kernel'])
+    source_makefile = (source / 'Makefile').read_text()
+    upstream_extra = re.search(r'^EXTRAVERSION[ \t]*=[ \t]*([^ \t\r\n]*)', source_makefile, re.M)
+    data['upstream_extraversion'] = upstream_extra.group(1) if upstream_extra else ''
     output = work / 'output'; output.mkdir()
     official = info / 'usr/lib/linux' / (data['kernel'] + '-' + data['abi'] + '-generic')
     original_config = (official / 'config').read_text()
@@ -52,7 +55,7 @@ def main():
     cert_der = work / 'module-cert.der'
     run(['openssl', 'x509', '-in', cert, '-outform', 'DER', '-out', cert_der])
     data['module_cert_der_sha256'] = sha256(cert_der)
-    apply_patches(source, logs / 'patches.log')
+    apply_patches(source, logs / 'patches.log', kernel=data['kernel'])
     config = source / 'scripts/config'
     run([config, '--file', output / '.config', '--module', 'SPI_HID',
          '--set-str', 'MODULE_SIG_KEY', 'certs/sl7-module-cert.pem',
@@ -66,7 +69,8 @@ def main():
     rustc = 'rustc-' + rust.group(1)
     run(['apt-get', 'install', '-y', '--no-install-recommends', f'gcc-{gcc_major}', f'g++-{gcc_major}',
          rustc, 'rust-' + rust.group(1) + '-src', 'bindgen'], env=env)
-    make = ['make', '-C', source, 'O=' + str(output),
+    # Ubuntu's ABI does not include upstream -rcN; keep it in BUILD.json instead.
+    make = ['make', '-C', source, 'O=' + str(output), 'EXTRAVERSION=',
             'LOCALVERSION=-' + data['abi'] + '-sl7.' + data['release'].split('-sl7.')[1],
             f'CC=gcc-{gcc_major}', f'HOSTCC=gcc-{gcc_major}', f'HOSTCXX=g++-{gcc_major}',
             'RUSTC=' + rustc, 'BINDGEN=bindgen']
@@ -119,7 +123,8 @@ def main():
     shutil.copytree(ROOT / 'ci', bundle / 'tools', ignore=shutil.ignore_patterns('__pycache__'))
     shutil.copy2(output / 'scripts/sign-file', bundle / 'tools/sign-file')
     data.update(module_count=len(module_paths), signed=False, hardware_tested=False,
-                patch_sha256={p.name: sha256(p) for p in patches()},
+                patch_sha256={p.name: sha256(p) for p in patches(kernel=data['kernel'])},
+                patch_paths=[str(p.relative_to(ROOT / 'patches')) for p in patches(kernel=data['kernel'])],
                 stubble_deb_sha256=sha256(deb),
                 toolchain=subprocess.check_output(['dpkg-query', '-W', '-f=${Package}=${Version}\n'], text=True))
     (bundle / 'BUILD.json').write_text(json.dumps(data, indent=2) + '\n')

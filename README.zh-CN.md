@@ -8,6 +8,7 @@
 - 只使用stonking、stonking-updates、stonking-security，不跟踪proposed，也不会自动换到下一版Ubuntu。
 - Ubuntu版本、补丁、构建脚本、workflow或公开模块证书改变才重建。手动选择force可强制重建；每次产物的内核release都唯一，便于并存。
 - 五个补丁按series严格依次应用，`--fuzz=0`。任何补丁冲突、源/config不同步、工具链变化或编译失败，都使构建失败；不自动跳过、反向应用或让AI自动改补丁。
+- 已审阅的7.3 GENI适配位于`patches/variants/7.3/`，按内核系列替换0002，7.2继续使用原版。上游合入状态和X1E电源改进见[7.3核对记录](docs/7.3-upstream-audit.zh-CN.md)。
 - 失败时自动创建/更新一个GitHub Issue，`@仓库所有者`并附运行链接。通知邮件/推送依赖所有者的GitHub通知设置。后续成功构建自动关闭该Issue。GitHub基础设施整体故障时通知任务也可能无法运行。
 - 成功后发布 **prerelease / signed candidate**，含校验清单、官方输入版本、补丁哈希、构建日志、签名后的内核deb及可独立重签的未签名构建包；编译和验签成功不代表已通过实机验收。
 

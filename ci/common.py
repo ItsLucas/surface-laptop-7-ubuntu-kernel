@@ -16,7 +16,12 @@ def sha256(path):
         return hashlib.file_digest(f, 'sha256').hexdigest()
 
 
-def patches(root=ROOT):
+def patches(root=ROOT, kernel=None):
+    series = None
+    if kernel is not None:
+        if not re.fullmatch(r'\d+\.\d+(?:\.\d+)?', kernel):
+            raise ValueError('Invalid kernel version for patch selection')
+        series = '.'.join(kernel.split('.')[:2])
     names = [s.strip() for s in (root / 'patches/series').read_text().splitlines()
              if s.strip() and not s.startswith('#')]
     if not names or len(set(names)) != len(names):
@@ -24,12 +29,14 @@ def patches(root=ROOT):
     for name in names:
         if not re.fullmatch(r'[a-zA-Z0-9_.-]+\.patch', name):
             raise ValueError('Unsafe patch name')
-        yield root / 'patches' / name
+        variant = root / 'patches/variants' / series / name if series else None
+        yield variant if variant is not None and variant.is_file() else root / 'patches' / name
 
 
 def recipe_hash(cert_pem, root=ROOT):
     h = hashlib.sha256()
-    inputs = [root / 'patches/series', *patches(root), *sorted((root / 'ci').rglob('*')),
+    inputs = [root / 'patches/series', *patches(root), *sorted((root / 'patches/variants').rglob('*.patch')),
+              *sorted((root / 'ci').rglob('*')),
               *sorted((root / '.github/workflows').glob('*.yml'))]
     for p in inputs:
         if p.is_file() and '__pycache__' not in p.parts and p.suffix != '.pyc':
@@ -55,10 +62,10 @@ def release_name(kernel, abi, run_number, attempt):
     return release
 
 
-def apply_patches(source, log, root=ROOT):
+def apply_patches(source, log, root=ROOT, kernel=None):
     with Path(log).open('w') as out:
-        for patch in patches(root):
-            out.write(f'Applying {patch.name}\n'); out.flush()
+        for patch in patches(root, kernel=kernel):
+            out.write(f'Applying {patch.relative_to(root / "patches")}\n'); out.flush()
             args = ['patch', '--batch', '--forward', '--fuzz=0', '-p1', '-i', patch]
             run(args + ['--dry-run'], cwd=source, stdout=out, stderr=subprocess.STDOUT)
             run(args, cwd=source, stdout=out, stderr=subprocess.STDOUT)
