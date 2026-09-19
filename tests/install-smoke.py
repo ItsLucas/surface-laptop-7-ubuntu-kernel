@@ -87,6 +87,25 @@ def install(packages, check=True):
     return result
 
 
+def install_stock_fixture():
+    # flash-kernel checks dpkg ownership/status when choosing the latest kernel.
+    stage = Path('/tmp/sl7-smoke/stock-package')
+    write(stage / 'DEBIAN/control',
+          'Package: linux-image-9.9.0-99-generic\nVersion: 9.9.0-99.99\n'
+          'Architecture: all\nMaintainer: SL7 Test <test@example.invalid>\n'
+          'Description: Non-bootable stock-kernel installation fixture\n')
+    image, dtb = image_with_dtb()
+    (stage / 'boot').mkdir()
+    (stage / 'boot/vmlinuz-9.9.0-99-generic').write_bytes(image)
+    write(stage / 'boot/initrd.img-9.9.0-99-generic', 'stock-fallback-fixture\n')
+    provided = stage / 'usr/lib/linux-image-9.9.0-99-generic/qcom/x1e80100-microsoft-romulus13.dtb'
+    provided.parent.mkdir(parents=True)
+    provided.write_bytes(dtb)
+    package = stage.parent / 'stock-fixture.deb'
+    run('dpkg-deb', '--root-owner-group', '--build', stage, package)
+    run('dpkg', '-i', package)
+
+
 def assert_installed(release):
     dtb = 'qcom/x1e80100-microsoft-romulus13.dtb'
     provided = Path('/usr/lib/linux-image-' + release) / dtb
@@ -128,12 +147,7 @@ def main():
     first, second = '7.1.0-1-sl7.900.1', '7.1.0-1-sl7.901.1'
     write('/etc/default/grub.d/zz-sl7-apt-follow.cfg', 'SL7_FOLLOW_APT=1\n')
     # A newer stock kernel must remain available without displacing SL7.
-    generic_image, generic_dtb = image_with_dtb()
-    Path('/boot/vmlinuz-9.9.0-99-generic').write_bytes(generic_image)
-    write('/boot/initrd.img-9.9.0-99-generic', 'stock-fallback-fixture\n')
-    stock_dtb = Path('/usr/lib/linux-image-9.9.0-99-generic/qcom/x1e80100-microsoft-romulus13.dtb')
-    stock_dtb.parent.mkdir(parents=True)
-    stock_dtb.write_bytes(generic_dtb)
+    install_stock_fixture()
     install(fixture(first, '7.1.0-1.1+sl7.900.1'))
     before = assert_installed(first)
     second_packages = fixture(second, '7.1.0-1.1+sl7.901.1')
