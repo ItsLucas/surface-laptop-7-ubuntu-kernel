@@ -23,7 +23,7 @@ def main():
     run(['apt-get', 'build-dep', '-y', '--no-install-recommends', 'linux=' + data['ubuntu_version']], env=env)
     run(['apt-get', 'install', '-y', '--no-install-recommends', 'bc', 'bison', 'flex', 'libelf-dev',
          'libssl-dev', 'dwarves', 'rsync', 'cpio', 'kmod', 'zstd', 'device-tree-compiler', 'stubble',
-         'python3-pefile', 'python3-jinja2', 'sbsigntool'], env=env)
+         'python3-pefile', 'python3-jinja2', 'sbsigntool', 'ccache'], env=env)
     run(['apt-get', 'clean'])
     if shutil.disk_usage(work).free < 25 * 1024**3:
         raise RuntimeError('Less than 25 GiB free before build; increase runner disk capacity')
@@ -72,7 +72,7 @@ def main():
     # Ubuntu's ABI does not include upstream -rcN; keep it in BUILD.json instead.
     make = ['make', '-C', source, 'O=' + str(output), 'EXTRAVERSION=',
             'LOCALVERSION=-' + data['abi'] + '-sl7.' + data['release'].split('-sl7.')[1],
-            f'CC=gcc-{gcc_major}', f'HOSTCC=gcc-{gcc_major}', f'HOSTCXX=g++-{gcc_major}',
+            f'CC=ccache gcc-{gcc_major}', f'HOSTCC=ccache gcc-{gcc_major}', f'HOSTCXX=ccache g++-{gcc_major}',
             'RUSTC=' + rustc, 'BINDGEN=bindgen']
     run(make + ['rustavailable'])
     run(make + ['olddefconfig'])
@@ -84,9 +84,16 @@ def main():
     observed = subprocess.check_output([str(x) for x in make + ['-s', 'kernelrelease']], text=True).strip()
     if observed != data['release']:
         raise RuntimeError(f'Unexpected kernel release {observed}')
-    with (logs / 'build.log').open('w') as log:
-        run(make + ['-j' + str(min(os.cpu_count() or 2, 4)), 'Image', 'modules', 'vmlinuz.efi',
-                    'qcom/x1e80100-microsoft-romulus13.dtb'], stdout=log, stderr=subprocess.STDOUT)
+    run(['ccache', '--zero-stats'])
+    try:
+        with (logs / 'build.log').open('w') as log:
+            run(make + ['-j' + str(min(os.cpu_count() or 2, 4)), 'Image', 'modules', 'vmlinuz.efi',
+                        'qcom/x1e80100-microsoft-romulus13.dtb'], stdout=log, stderr=subprocess.STDOUT)
+    finally:
+        # Report cache effectiveness even when compilation fails, without masking its error.
+        stats = subprocess.run(['ccache', '--show-stats'], capture_output=True, text=True)
+        print(stats.stdout, flush=True)
+        (logs / 'ccache-stats.txt').write_text(stats.stdout + stats.stderr)
     bundle = work / ('sl7-' + data['release'] + '-unsigned'); bundle.mkdir()
     stage = bundle / 'root'; stage.mkdir()
     with (logs / 'modules-install.log').open('w') as log:

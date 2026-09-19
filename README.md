@@ -8,6 +8,15 @@ Configure the **public certificate** in repository variable `MODULE_CERT_PEM` an
 
 [中文使用与维护说明](README.zh-CN.md) · [Patch provenance](PROVENANCE.md)
 
+Builds reuse a compressed ccache through GitHub Actions caching (3 GB per snapshot).
+Each successful build saves a new snapshot; subsequent runs restore the latest
+snapshot for the runner OS/architecture. Compiler contents, inputs and options
+still determine individual cache hits. The first run populates the cache;
+linking, Rust compilation and packaging are not accelerated. Cache statistics
+appear in the build log and `build-diagnostics/ccache-stats.txt` (inside the
+diagnostic artifact's logs directory). Change the `ccache-v1` workflow key prefix
+to start with an empty cache.
+
 The signed APT archive is **https://mirrors.5cena.cc/sl7/** (`stonking`, `arm64`,
 `candidate` / `stable`). Install the `linux-sl7` metapackage to follow updates.
 The image package uses Ubuntu kernel hooks to generate initrd with dracut and
