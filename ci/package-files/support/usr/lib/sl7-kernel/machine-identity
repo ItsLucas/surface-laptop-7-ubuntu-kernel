@@ -1,0 +1,77 @@
+#!/usr/bin/python3
+"""Identify the Surface Laptop 7 size from SMBIOS and name it for flash-kernel.
+
+Kernels published before the 15-inch correction embedded the Romulus13 DTB,
+so a 15-inch machine running them reports the 13.8-inch model. flash-kernel
+would then look for a Romulus13 DTB in newer packages and fail. Only the
+SMBIOS SKU distinguishes the two sizes (stubble hwids/txt records).
+"""
+import os
+from pathlib import Path
+import sys
+
+PRODUCT = 'Microsoft Surface Laptop, 7th Edition'
+SKUS = {'Surface_Laptop_7th_Edition_2036': 'romulus13',
+        'Surface_Laptop_7th_Edition_2037': 'romulus15'}
+MACHINES = {'romulus13': 'Microsoft Surface Laptop 7 (13.8 inch)',
+            'romulus15': 'Microsoft Surface Laptop 7 (15 inch)'}
+
+# Same override names as flash-kernel itself; SL7_* only for tests.
+DMI = Path(os.environ.get('SL7_DMI_DIR', '/sys/class/dmi/id'))
+ETC_MACHINE = Path(os.environ.get('FK_ETC_MACHINE', '/etc/flash-kernel/machine'))
+STATE = Path(os.environ.get('SL7_STATE_DIR', '/var/lib/sl7-kernel'))
+BACKUP = STATE / 'flash-kernel-machine.before-sl7'
+
+
+def dmi(name):
+    try:
+        return (DMI / name).read_text().strip()
+    except OSError:
+        return ''
+
+
+def identify():
+    """romulus15, romulus13, unknown (another SL7 SKU) or None (not an SL7)."""
+    if dmi('sys_vendor') != 'Microsoft Corporation' or dmi('product_name') != PRODUCT:
+        return None
+    return SKUS.get(dmi('product_sku'), 'unknown')
+
+
+def migrate():
+    model = identify()
+    if model == 'romulus13':
+        print('linux-sl7-support: the 13.8-inch Surface Laptop 7 is not supported; '
+              'SL7 kernels are built for the 15-inch Romulus15.', file=sys.stderr)
+        return
+    # No flash-kernel means no DTB-name lookup to correct.
+    if model != 'romulus15' or not ETC_MACHINE.parent.is_dir():
+        return
+    wanted = MACHINES['romulus15']
+    if ETC_MACHINE.is_symlink() or (ETC_MACHINE.exists() and not ETC_MACHINE.is_file()):
+        print(f'linux-sl7-support: leaving non-regular {ETC_MACHINE} unchanged', file=sys.stderr)
+        return
+    if ETC_MACHINE.exists():
+        current = ETC_MACHINE.read_text().strip()
+        if current == wanted:
+            return
+        if current != MACHINES['romulus13']:
+            print(f'linux-sl7-support: keeping administrator machine name {current!r} '
+                  f'in {ETC_MACHINE}; SL7 kernels need {wanted!r}', file=sys.stderr)
+            return
+        STATE.mkdir(parents=True, exist_ok=True)
+        if not BACKUP.exists():
+            BACKUP.write_text(ETC_MACHINE.read_text())
+    temporary = ETC_MACHINE.with_name(ETC_MACHINE.name + '.sl7-new')
+    temporary.write_text(wanted + '\n')
+    temporary.chmod(0o644)
+    temporary.replace(ETC_MACHINE)
+    print(f'linux-sl7-support: SMBIOS SKU identifies a 15-inch Surface Laptop 7; '
+          f'set {ETC_MACHINE} to {wanted!r}', file=sys.stderr)
+
+
+if __name__ == '__main__':
+    commands = {'identify': lambda: print(identify() or 'none'),
+                'migrate': migrate}
+    if len(sys.argv) != 2 or sys.argv[1] not in commands:
+        raise SystemExit('usage: machine-identity identify|migrate')
+    commands[sys.argv[1]]()

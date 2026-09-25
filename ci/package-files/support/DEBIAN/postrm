@@ -1,0 +1,6 @@
+#!/bin/sh
+set -eu
+# /etc/flash-kernel/machine keeps the SMBIOS-verified name: it stays correct.
+if [ "$1" = purge ]; then
+    rm -rf /var/lib/sl7-kernel
+fi

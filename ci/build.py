@@ -95,7 +95,7 @@ def main():
     try:
         with (logs / 'build.log').open('w') as log:
             run(make + ['-j' + str(min(os.cpu_count() or 2, 4)), 'Image', 'modules', 'vmlinuz.efi',
-                        'qcom/x1e80100-microsoft-romulus13.dtb'], stdout=log, stderr=subprocess.STDOUT)
+                        'qcom/x1e80100-microsoft-romulus15.dtb'], stdout=log, stderr=subprocess.STDOUT)
             # Build these sources against the exact generated kernel ABI. The
             # ordinary signing job signs them with the rest of the modules.
             run(pld_make + ['-j2', 'modules'], stdout=log, stderr=subprocess.STDOUT)
@@ -139,7 +139,7 @@ def main():
             raise RuntimeError('Missing hardware module: ' + name)
     boot = bundle / 'boot-inputs'; boot.mkdir()
     for src, name in [(output / 'arch/arm64/boot/vmlinuz.efi', 'inner-unsigned.efi'),
-                      (output / 'arch/arm64/boot/dts/qcom/x1e80100-microsoft-romulus13.dtb', 'romulus13.dtb'),
+                      (output / 'arch/arm64/boot/dts/qcom/x1e80100-microsoft-romulus15.dtb', 'romulus15.dtb'),
                       (output / '.config', 'config'), (output / 'System.map', 'System.map'),
                       (output / 'Module.symvers', 'Module.symvers'), (cert, 'module-cert.pem')]:
         shutil.copy2(src, boot / name)

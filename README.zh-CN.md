@@ -1,6 +1,8 @@
 # Surface Laptop 7：Ubuntu 26.10 自动内核构建
 
-为13.8英寸 Snapdragon X Elite / Romulus13 跟踪 Ubuntu 26.10（stonking）的官方 generic 内核，叠加已整理的 Wi-Fi、QSPI触控板、SPI触摸屏和GPIO/电源管理补丁。每天北京时间11:17检查，也可手动运行；GitHub计划任务可能延迟。
+为15英寸 Surface Laptop 7（Snapdragon X Elite / Romulus15）跟踪 Ubuntu 26.10（stonking）的官方 generic 内核，叠加已整理的 Wi-Fi、QSPI触控板、SPI触摸屏和GPIO/电源管理补丁。每天北京时间11:17检查，也可手动运行；GitHub计划任务可能延迟。
+
+**只支持15英寸。**以前的记录误写为13.8英寸Romulus13，改正过程和上机检查清单见[15英寸迁移说明](docs/15-inch-migration.zh-CN.md)。13.8英寸的触摸屏是另一套I2C硬件，image包在SMBIOS SKU `Surface_Laptop_7th_Edition_2036`上会拒绝安装。
 
 ## 自动更新与通知
 
@@ -40,7 +42,7 @@ gh variable set MODULE_CERT_PEM --repo OWNER/REPO < /path/to/module-public-cert.
 
 ## APT软件源与自动安装
 
-软件源为 **https://mirrors.5cena.cc/sl7/**，仅适用于Ubuntu 26.10 / arm64 / 13.8英寸Romulus13及已有GRUB2环境。`candidate`接收签名候选；实机验收后才晋升`stable`，尚无验收版本时stable为空。
+软件源为 **https://mirrors.5cena.cc/sl7/**，仅适用于Ubuntu 26.10 / arm64 / 15英寸Romulus15及已有GRUB2环境。`candidate`接收签名候选；实机验收后才晋升`stable`，尚无验收版本时stable为空。
 
 ```sh
 sudo install -d -m 0755 /etc/apt/keyrings
@@ -65,7 +67,7 @@ sudo update-grub
 
 后续更新使用`sudo apt update && sudo apt install linux-sl7`，或执行允许安装新依赖的`sudo apt upgrade`；元包拉取新的版本化image和support包。确认`dpkg --audit`无未配置包后再重启。仓库每小时从已完成GitHub Release同步候选，因此Actions完成后APT出现新版本可能有延迟。
 
-设备树同时随包安装到`/usr/lib/linux-image-版本/qcom/x1e80100-microsoft-romulus13.dtb`，供发行版`flash-kernel`安装钩子使用。它直接提取自已签名EFI的`.dtbauto`，与镜像内设备树逐字节一致；不重新编译或修改签名镜像。安装测试包含`flash-kernel`及Romulus13机型配置，以覆盖这条实际安装路径。早期`sl7.5.1`包漏装了这份独立DTB，可能卡在`zz-flash-kernel`；这是打包缺陷，不要求重装系统。
+设备树同时随包安装到`/usr/lib/linux-image-版本/qcom/x1e80100-microsoft-romulus15.dtb`，供发行版`flash-kernel`安装钩子使用。它直接提取自已签名EFI的`.dtbauto`，与镜像内设备树逐字节一致；不重新编译或修改签名镜像。安装测试包含`flash-kernel`，并模拟仍在运行旧Romulus13设备树的15英寸机器，以覆盖这条实际安装路径。早期`sl7.5.1`包漏装了这份独立DTB，可能卡在`zz-flash-kernel`；这是打包缺陷，不要求重装系统。
 
 Secure Boot下，GRUB的外部`devicetree`命令会被lockdown拒绝。SL7签名EFI已包含设备树，新support包会在标准`10_linux`生成菜单前清理`flash-kernel`创建的SL7专用`/boot/dtb-版本`链接及通用`/boot/dtb`回退链接，避免重复加载。实际DTB文件、包内DTB和官方内核的版本化DTB链接保留，不改发行版`10_linux`脚本、不关闭Secure Boot。清理对每次`update-grub`生效；遇到无法识别的用户自定义DTB文件/链接会停止并要求审阅。
 
@@ -87,7 +89,7 @@ sudo python3 ci/sign-local.py \
   --boot-cert /path/to/local-boot-public-cert.pem
 ```
 
-本地需要openssl、sbsigntool、kmod、zstd、dpkg及Stubble Python依赖（如python3-pefile）。脚本验证文件清单、内建模块证书与私钥匹配、ARM64模块release；逐个签名并验证模块CMS签名，再签内层EFI、嵌入Romulus13设备树并签外层EFI，最终生成可并存deb。整个过程只写新的暂存目录，不安装。
+本地需要openssl、sbsigntool、kmod、zstd、dpkg及Stubble Python依赖（如python3-pefile）。脚本验证文件清单、内建模块证书与私钥匹配、ARM64模块release；逐个签名并验证模块CMS签名，再签内层EFI、嵌入Romulus15设备树并签外层EFI，最终生成可并存deb。整个过程只写新的暂存目录，不安装。
 
 本地重签也生成上述三个配套deb，应一起交给`apt install ./linux-*.deb`处理依赖和自动配置。保持当前已验证内核、官方内核与回退菜单；新候选仍需确认Secure Boot、Wi-Fi/MAC、蓝牙、触控板移动/点击/轻触/双指滚动、触屏、冷启动、熄屏/解锁和deep恢复。私钥丢失或更换需要另行处理信任登记。
 
@@ -95,14 +97,14 @@ sudo python3 ci/sign-local.py \
 
 | 补丁 | 内容 |
 |---|---|
-| 0001 | Romulus13 ath12k硬rfkill workaround |
+| 0001 | Romulus15 ath12k硬rfkill workaround |
 | 0002 | ELLX来源的QSPI/GPI/SPI HID transport及触控板设备树移植 |
 | 0003 | 本机GTCH SPI触摸屏设备树 |
 | 0004 | SPI HID系统睡眠、关机和电源生命周期 |
 | 0005 | GPIO供电/reset职责分离、触屏跟随内置屏幕省电 |
 | 0006（按源码状态） | 回退7.3 QRTR HELLO改动，恢复Wi-Fi固件在系统睡眠后的服务发现 |
 
-来源见[PROVENANCE.md](PROVENANCE.md)。0004/0005原补丁说明中的test字样来自2026-09-15阶段归档；之后已在基线7.2.0-5.5上使用，但不意味着任意新版本自动通过实测。13英寸与15英寸的设备树不可混用。
+来源见[PROVENANCE.md](PROVENANCE.md)。0004/0005原补丁说明中的test字样来自2026-09-15阶段归档；之后已在基线7.2.0-5.5上使用，但不意味着任意新版本自动通过实测。13.8英寸与15英寸的触摸屏硬件不同（ITCH/I2C与GTCH/SPI），本仓库只支持15英寸。
 
 保留现有修复版iptsd、指尖/拇指联合校准、UEFI推导MAC服务和显示恢复服务；这些不随每次内核构建重装。本地iptsd睡眠钩子曾按SPI HID模块版本判断，未来修改模块版本或升级iptsd时也要审阅。偶发触控板/EC卡住和USB4扩展坞链路问题没有被本CI宣称解决。
 
@@ -113,8 +115,8 @@ sudo python3 ci/sign-local.py \
 
 新增源码位于 [`drivers/qcom-pld-power`](drivers/qcom-pld-power/README.md)，包含
 `qcom_pld_power`（hwmon）和 `sl7_pld_device`（限定板型的设备注册）。已验证
-Romulus13 / X1E-80-100 / BIOS 175.235.235 / 7.3.0-5-sl7.8.1；不据此宣称支持其他
-X1E 笔记本、15 英寸机型或其他固件。完整接口证据见 [PROTOCOL.md](drivers/qcom-pld-power/PROTOCOL.md)，
+15 英寸 Romulus15 / X1E-80-100 / BIOS 175.235.235 / 7.3.0-5-sl7.8.1；不据此宣称支持其他
+X1E 笔记本、13.8 英寸机型或其他固件。完整接口证据见 [PROTOCOL.md](drivers/qcom-pld-power/PROTOCOL.md)，
 测试范围见 [验证记录](docs/pld-power-validation.md)。
 
 包含此功能的新内核发布后，支持包的 `modules-load.d` 配置会请求开机加载，

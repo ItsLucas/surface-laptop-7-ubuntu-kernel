@@ -2,9 +2,9 @@
 import struct
 
 
-def image_with_dtb():
+def image_with_dtb(compatible=b'microsoft,romulus15'):
     strings = b'compatible\0'
-    compatible = b'microsoft,romulus13\0'
+    compatible += b'\0'
     structure = (struct.pack('>I', 1) + b'\0' * 4 + struct.pack('>III', 3, len(compatible), 0)
                  + compatible + bytes(-len(compatible) % 4) + struct.pack('>II', 2, 9))
     header = struct.pack('>10I', 0xd00dfeed, 56 + len(structure) + len(strings),

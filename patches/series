@@ -1,5 +1,5 @@
-0001-ath12k-romulus13-rfkill-workaround.patch
-0002-romulus13-qspi-touchpad.patch
-0003-romulus13-gtch-spi-touchscreen.patch
+0001-ath12k-romulus15-rfkill-workaround.patch
+0002-romulus15-qspi-touchpad.patch
+0003-romulus15-gtch-spi-touchscreen.patch
 0004-spi-hid-power-lifecycle.patch
-0005-romulus13-gpio-panel-power.patch
+0005-romulus15-gpio-panel-power.patch

@@ -6,7 +6,7 @@ from common import run
 
 
 TEMPLATES = Path(__file__).resolve().parent / 'package-files'
-ROMULUS_DTB = 'qcom/x1e80100-microsoft-romulus13.dtb'
+ROMULUS_DTB = 'qcom/x1e80100-microsoft-romulus15.dtb'
 
 
 def embedded_dtb(image):
@@ -33,11 +33,11 @@ def embedded_dtb(image):
         magic, total_size = struct.unpack_from('>II', blob)
         if magic != 0xd00dfeed or total_size != virtual_size:
             raise ValueError('Invalid embedded FDT header or size')
-        if b'microsoft,romulus13\0' not in blob:
-            raise ValueError('Embedded device tree is not for Romulus13')
+        if b'microsoft,romulus15\0' not in blob:
+            raise ValueError('Embedded device tree is not for Romulus15')
         trees.append(blob)
     if len(trees) != 1:
-        raise ValueError('Expected exactly one Romulus13 .dtbauto section')
+        raise ValueError('Expected exactly one Romulus15 .dtbauto section')
     return trees[0]
 
 
@@ -81,9 +81,10 @@ def build_packages(stage, out, data):
     control(stage, name, version, 'arm64',
             f'kmod, linux-base (>= 4.17~), debianutils (>= 5.21), dracut, '
             f'linux-sl7-support (>= {version})',
-            'Signed Surface Laptop 7 13.8-inch kernel\n'
-            ' Includes the Romulus13 device tree and signed modules. Installation\n'
-            ' generates an initramfs and updates the existing GRUB configuration.')
+            'Signed Surface Laptop 7 15-inch kernel\n'
+            ' Includes the Romulus15 device tree and signed modules. Installation\n'
+            ' generates an initramfs and updates the existing GRUB configuration.\n'
+            ' The 13.8-inch Romulus13 is not supported.')
     for template in sorted((TEMPLATES / 'image').iterdir()):
         target = stage / 'DEBIAN' / template.name
         target.write_text(template.read_text().replace('@RELEASE@', release))
@@ -105,7 +106,7 @@ def build_packages(stage, out, data):
 
     meta = out / 'meta-package'
     control(meta, 'linux-sl7', version, 'arm64', f'{name} (= {version})',
-            'Latest Surface Laptop 7 13.8-inch kernel\n'
+            'Latest Surface Laptop 7 15-inch kernel\n'
             ' Install this metapackage to follow kernel updates through APT.\n'
             ' Secure Boot requires enrollment of the published boot certificate.')
     meta_deb = build_deb(meta, out, 'linux-sl7', version, 'arm64')

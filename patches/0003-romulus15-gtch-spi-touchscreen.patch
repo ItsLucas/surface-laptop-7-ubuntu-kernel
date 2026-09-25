@@ -1,13 +1,13 @@
---- a/arch/arm64/boot/dts/qcom/x1e80100-microsoft-romulus13.dts
-+++ b/arch/arm64/boot/dts/qcom/x1e80100-microsoft-romulus13.dts
+--- a/arch/arm64/boot/dts/qcom/x1e80100-microsoft-romulus15.dts
++++ b/arch/arm64/boot/dts/qcom/x1e80100-microsoft-romulus15.dts
 @@ -12,3 +12,5 @@
- 	model = "Microsoft Surface Laptop 7 (13.8 inch)";
- 	compatible = "microsoft,romulus13", "qcom,x1e80100";
+ 	model = "Microsoft Surface Laptop 7 (15 inch)";
+ 	compatible = "microsoft,romulus15", "qcom,x1e80100";
  };
 +
-+#include "x1e80100-microsoft-romulus13-gtch-test.dtsi"
++#include "x1e80100-microsoft-romulus15-touchscreen.dtsi"
 --- /dev/null
-+++ b/arch/arm64/boot/dts/qcom/x1e80100-microsoft-romulus13-gtch-test.dtsi
++++ b/arch/arm64/boot/dts/qcom/x1e80100-microsoft-romulus15-touchscreen.dtsi
 @@ -0,0 +1,89 @@
 +// SPDX-License-Identifier: BSD-3-Clause
 +/* Local test derived from this machine's MSHW0461/GTCH Windows ACPI resources. */

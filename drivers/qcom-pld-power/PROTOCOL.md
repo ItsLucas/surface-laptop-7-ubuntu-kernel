@@ -5,7 +5,7 @@ disassembly and device-specific raw captures are not redistributed here.
 
 ## Evidence chain
 
-On the tested Romulus13, Windows Energy Meter exposes seven channels through the
+On the tested 15-inch Romulus15, Windows Energy Meter exposes seven channels through the
 standard EMI interface on the Qualcomm PEP device (`QCOM0C17`). The provider uses
 `umpoext.dll`; Qualcomm's [libqcperf POWER backend](https://github.com/qualcomm/libqcperf/blob/662b0c3cddfd7c92d71fcc16fafdcc1b342047b7/qcperf/backends/wos-power-backend/power-telemetry/src/power_telemetry.c)
 reads the Energy Meter PDH counters. EMI v2 metadata names Qualcomm / 8380 and the

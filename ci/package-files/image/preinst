@@ -3,6 +3,13 @@ set -eu
 version='@RELEASE@'
 case "$1" in
     install|upgrade)
+        # Built for the 15-inch Romulus15 only; SMBIOS SKU 2036 is the 13.8-inch.
+        sku=$(cat "${SL7_DMI_DIR:-/sys/class/dmi/id}/product_sku" 2>/dev/null || true)
+        if [ "$sku" = Surface_Laptop_7th_Edition_2036 ]; then
+            echo "linux-image-$version: this kernel is built for the 15-inch Surface Laptop 7" >&2
+            echo "(Romulus15); SMBIOS reports the unsupported 13.8-inch model." >&2
+            exit 1
+        fi
         if command -v linux-run-hooks >/dev/null 2>&1; then
             linux-run-hooks image preinst "$version" "/boot/vmlinuz-$version" -- "$@"
         fi

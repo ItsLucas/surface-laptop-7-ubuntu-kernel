@@ -98,10 +98,10 @@ def main():
     run(['sbverify', '--cert', args.boot_cert, inner])
     hwids = out / 'hwids'; hwids.mkdir()
     stubble = bundle / 'stubble/usr'
-    shutil.copy2(stubble / 'share/stubble/hwids/x1e80100-microsoft-romulus13.json', hwids)
+    shutil.copy2(stubble / 'share/stubble/hwids/x1e80100-microsoft-romulus15.json', hwids)
     unsigned = out / 'outer-unsigned.efi'
     run(['python3', stubble / 'bin/stubblify', 'build', '--stub=' + str(stubble / 'lib/stubble/stubble.efi'),
-         '--linux=' + str(inner), '--devicetree-auto=' + str(bundle / 'boot-inputs/romulus13.dtb'),
+         '--linux=' + str(inner), '--devicetree-auto=' + str(bundle / 'boot-inputs/romulus15.dtb'),
          '--hwids=' + str(hwids), '--uname=' + release, '--no-sign-kernel', '--output=' + str(unsigned)])
     image = boot / ('vmlinuz-' + release)
     run(['sbsign', '--key', args.boot_key, '--cert', args.boot_cert, '--output', image, unsigned])

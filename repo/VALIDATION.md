@@ -1,5 +1,13 @@
 # Deployment validation — 2026-09-18
 
+## 2026-09-25 model correction
+
+The machine recorded below as Romulus13 is the 15-inch Surface Laptop 7
+(SMBIOS SKU `Surface_Laptop_7th_Edition_2037`). It booted the Romulus13 DTB,
+which upstream keeps identical to Romulus15 apart from the model and compatible
+strings. Packages now carry the Romulus15 DTB and set flash-kernel's machine name
+from the SMBIOS SKU; the install test covers upgrading from a Romulus13-era kernel.
+
 ## 2026-09-19 packaging correction
 
 The original container tests below did not install `flash-kernel`. On the real

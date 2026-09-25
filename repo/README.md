@@ -1,7 +1,7 @@
 # SL7 APT archive operations
 
 The deployed endpoint is https://mirrors.5cena.cc/sl7/. Packages target Ubuntu 26.10
-`stonking`, `arm64`, Surface Laptop 7 13.8-inch / Romulus13, with existing GRUB2.
+`stonking`, `arm64`, Surface Laptop 7 15-inch / Romulus15, with existing GRUB2.
 Use `sl7.sources` and the public archive key from the endpoint. The `candidate`
 component receives completed native-package GitHub Releases; `stable` is promoted
 only after hardware validation. An empty stable component is intentional.

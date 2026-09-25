@@ -1,6 +1,6 @@
 Subject: [PATCH] HID: spi-hid: sequence rails and reset, manage panel and system power
 
-Local Romulus13 test based on this machine's HSPI/GTCH ACPI and the
+Local Romulus15 test based on this machine's HSPI/GTCH ACPI and the
 DRM panel-follower API used by in-tree i2c-hid. Keep rail GPIOs owned by
 regulators, power down on shutdown/suspend, and rebuild HID state after
 resume. Enumeration uses freezable work so children appear after thaw.

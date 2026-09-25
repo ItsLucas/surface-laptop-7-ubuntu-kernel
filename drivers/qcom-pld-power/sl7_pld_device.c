@@ -28,7 +28,7 @@ static int __init sl7_pld_init(void)
 {
 	struct device_node *np;
 
-	if (!of_machine_is_compatible("microsoft,romulus13") ||
+	if (!of_machine_is_compatible("microsoft,romulus15") ||
 	    !of_machine_is_compatible("qcom,x1e80100") ||
 	    !dmi_check_system(sl7_pld_dmi))
 		return -ENODEV;
@@ -52,6 +52,6 @@ static void __exit sl7_pld_exit(void)
 module_init(sl7_pld_init);
 module_exit(sl7_pld_exit);
 MODULE_SOFTDEP("pre: qcom_pld_power");
-MODULE_DESCRIPTION("Romulus13 BIOS 175.235.235 PLD device bridge");
+MODULE_DESCRIPTION("Romulus15 BIOS 175.235.235 PLD device bridge");
 MODULE_LICENSE("GPL");
 MODULE_VERSION("0.1.0");

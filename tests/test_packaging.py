@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -36,6 +37,18 @@ class PackagingTests(unittest.TestCase):
             self.assertEqual(provided.read_bytes(), b'dtb')
             self.assertEqual((boot / 'dtbs' / release / ROMULUS_DTB).read_bytes(), b'dtb')
             self.assertEqual(cleanup(root), [])
+            # Kernels published before the 15-inch correction carry the Romulus13 DTB.
+            legacy, legacy_dtb = '7.3.0-5-sl7.9.1', 'qcom/x1e80100-microsoft-romulus13.dtb'
+            (boot / ('vmlinuz-' + legacy)).write_text('signed-efi-fixture')
+            provided = root / 'usr/lib' / ('linux-image-' + legacy) / legacy_dtb
+            provided.parent.mkdir(parents=True); provided.write_bytes(b'dtb')
+            dtb = boot / 'dtbs' / legacy / legacy_dtb
+            dtb.parent.mkdir(parents=True); dtb.write_bytes(b'dtb')
+            (boot / ('dtb-' + legacy)).symlink_to(dtb.relative_to(boot))
+            (boot / 'dtb').symlink_to(dtb.relative_to(boot))
+            self.assertEqual(len(cleanup(root)), 2)
+            self.assertFalse((boot / ('dtb-' + legacy)).is_symlink())
+            self.assertEqual(dtb.read_bytes(), b'dtb')
             # A user-created file is never removed to suppress a GRUB warning.
             (boot / 'dtb').write_text('custom-dtb')
             with self.assertRaises(RuntimeError):
@@ -58,6 +71,10 @@ class PackagingTests(unittest.TestCase):
             self.assertEqual((stage / 'usr/lib/linux-image-7.2.0-5-sl7.4.1' / ROMULUS_DTB).read_bytes(), dtb)
             self.assertEqual(kernel.read_bytes(), image)
             self.assertIn('dracut, linux-sl7-support', (stage / 'DEBIAN/control').read_text())
+            for name in ['postinst', 'postrm']:
+                script = out / 'support-package/DEBIAN' / name
+                self.assertTrue(os.access(script, os.X_OK))
+                subprocess.run(['sh', '-n', script], check=True)
             self.assertIn('linux-image-7.2.0-5-sl7.4.1 (= 7.2.0-5.5+sl7.4.1)',
                           (out / 'meta-package/DEBIAN/control').read_text())
             for name in ['preinst', 'postinst', 'prerm', 'postrm']:
@@ -71,10 +88,61 @@ class PackagingTests(unittest.TestCase):
             image, _ = image_with_dtb()
             kernel = Path(tmp) / 'kernel.efi'
             for corrupt in [b'not a PE', image[:500], image.replace(b'\xd0\x0d\xfe\xed', b'BAD!'),
-                            image.replace(b'microsoft,romulus13', b'microsoft,romulus15')]:
+                            image.replace(b'microsoft,romulus15', b'microsoft,romulus13')]:
                 kernel.write_bytes(corrupt)
                 with self.assertRaises(ValueError):
                     embedded_dtb(kernel)
+
+    def test_flash_kernel_machine_follows_smbios_sku(self):
+        helper = ROOT / 'ci/package-files/support/usr/lib/sl7-kernel/machine-identity'
+        legacy, wanted = 'Microsoft Surface Laptop 7 (13.8 inch)\n', 'Microsoft Surface Laptop 7 (15 inch)\n'
+        cases = [  # SKU, existing machine file, expected file, expected backup
+            ('Surface_Laptop_7th_Edition_2037', None, wanted, None),
+            ('Surface_Laptop_7th_Edition_2037', legacy, wanted, legacy),
+            ('Surface_Laptop_7th_Edition_2037', wanted, wanted, None),
+            ('Surface_Laptop_7th_Edition_2037', 'Custom board\n', 'Custom board\n', None),
+            ('Surface_Laptop_7th_Edition_2036', None, None, None),
+            ('Surface_Laptop_7th_Edition_9999', legacy, legacy, None),
+            (None, None, None, None)]
+        for sku, existing, expected, backup in cases:
+            with self.subTest(sku=sku, existing=existing), tempfile.TemporaryDirectory() as tmp:
+                tmp = Path(tmp); dmi = tmp / 'dmi'; dmi.mkdir(); (tmp / 'etc').mkdir()
+                if sku:
+                    (dmi / 'sys_vendor').write_text('Microsoft Corporation\n')
+                    (dmi / 'product_name').write_text('Microsoft Surface Laptop, 7th Edition\n')
+                    (dmi / 'product_sku').write_text(sku + '\n')
+                machine = tmp / 'etc/machine'
+                if existing:
+                    machine.write_text(existing)
+                env = dict(os.environ, SL7_DMI_DIR=str(dmi), FK_ETC_MACHINE=str(machine),
+                           SL7_STATE_DIR=str(tmp / 'state'))
+                for _ in range(2):  # Idempotent across reconfiguration.
+                    subprocess.run([helper, 'migrate'], env=env, check=True, capture_output=True)
+                self.assertEqual(machine.read_text() if machine.exists() else None, expected)
+                saved = tmp / 'state/flash-kernel-machine.before-sl7'
+                self.assertEqual(saved.read_text() if saved.exists() else None, backup)
+        with tempfile.TemporaryDirectory() as tmp:  # flash-kernel absent: nothing to name.
+            env = dict(os.environ, SL7_DMI_DIR=tmp, FK_ETC_MACHINE=str(Path(tmp) / 'missing/machine'))
+            (Path(tmp) / 'sys_vendor').write_text('Microsoft Corporation\n')
+            (Path(tmp) / 'product_name').write_text('Microsoft Surface Laptop, 7th Edition\n')
+            (Path(tmp) / 'product_sku').write_text('Surface_Laptop_7th_Edition_2037\n')
+            subprocess.run([helper, 'migrate'], env=env, check=True, capture_output=True)
+            self.assertFalse((Path(tmp) / 'missing').exists())
+
+    def test_image_refuses_only_the_13_8_inch_sku(self):
+        preinst = (ROOT / 'ci/package-files/image/preinst').read_text().replace('@RELEASE@', '7.3.0-5-sl7.1.1')
+        for sku, status in [('Surface_Laptop_7th_Edition_2036', 1), ('Surface_Laptop_7th_Edition_2037', 0),
+                            (None, 0)]:
+            with self.subTest(sku=sku), tempfile.TemporaryDirectory() as dmi:
+                if sku:
+                    (Path(dmi) / 'product_sku').write_text(sku + '\n')
+                # Only cat: never run the host's real kernel hooks.
+                tools = Path(dmi) / 'bin'; tools.mkdir()
+                (tools / 'cat').symlink_to(shutil.which('cat'))
+                result = subprocess.run([shutil.which('sh'), '-c', preinst, 'preinst', 'install'],
+                                        env=dict(os.environ, SL7_DMI_DIR=dmi, PATH=str(tools)),
+                                        capture_output=True, text=True)
+                self.assertEqual(result.returncode, status, result.stderr)
 
     def test_dracut_config_scoped_to_sl7_and_keeps_existing_settings(self):
         conf = ROOT / 'ci/package-files/support/etc/dracut.conf.d/50-sl7.conf'

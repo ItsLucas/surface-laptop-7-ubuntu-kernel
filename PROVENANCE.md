@@ -1,9 +1,9 @@
 # Patch provenance
 
-Baseline reviewed on Ubuntu source `linux 7.2.0-5.5`, Microsoft Surface Laptop 7 13.8-inch X1E / Romulus13. Subsequent Ubuntu versions require successful patch application, builds, and separate hardware qualification.
+Baseline reviewed on Ubuntu source `linux 7.2.0-5.5`, Microsoft Surface Laptop 7 15-inch X1E / Romulus15 (SMBIOS SKU `Surface_Laptop_7th_Edition_2037`). Records before 2026-09-25 called this machine the 13.8-inch Romulus13 because it had booted the Romulus13 DTB; the hardware and all test results are unchanged. Subsequent Ubuntu versions require successful patch application, builds, and separate hardware qualification.
 
-- `0001`: Local port of the Romulus13 ath12k rfkill workaround, based on [bryce-hoehn/linux-surface-laptop-7](https://github.com/bryce-hoehn/linux-surface-laptop-7).
-- `0002`: QSPI/GPI and SPI HID transport from [ProgrammerIn-wonderland/ELLX-Kernel](https://github.com/ProgrammerIn-wonderland/ELLX-Kernel), commit `0e9944fa4cf2ccf575f5162bfd53ed4dc1592251`, ported to Ubuntu with lifecycle fixes and Romulus13-only wiring.
+- `0001`: Local port of the ath12k rfkill workaround, limited to Romulus15, based on [bryce-hoehn/linux-surface-laptop-7](https://github.com/bryce-hoehn/linux-surface-laptop-7).
+- `0002`: QSPI/GPI and SPI HID transport from [ProgrammerIn-wonderland/ELLX-Kernel](https://github.com/ProgrammerIn-wonderland/ELLX-Kernel), commit `0e9944fa4cf2ccf575f5162bfd53ed4dc1592251`, ported to Ubuntu with lifecycle fixes and Romulus15-only wiring.
 - `variants/7.3/0002`: Same hardware support rebased to Ubuntu `7.3.0-5.5` / upstream `v7.3-rc3`, retaining the upstream GENI resource callbacks, scoped runtime-PM acquisition and SA8255P support. This variant replaces only the SPI-controller portion; the other portions match the original 0002. See [the upstream audit](docs/7.3-upstream-audit.zh-CN.md).
 - `0003`: GTCH SPI touchscreen wiring derived from this model's Windows ACPI and the SPI transport investigation. It replaces the unsuccessful I2C touchscreen experiment; it is not the LKML I2C proposal.
 - `0004`, `0005`: Local 2026-09-15 SPI HID power-lifecycle, GPIO ownership and DRM panel follower changes. These extend the first three patches and must be applied as a set.

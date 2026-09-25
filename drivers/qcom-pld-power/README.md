@@ -6,7 +6,7 @@ counters. Protocol details are documented in [PROTOCOL.md](PROTOCOL.md).
 
 ## Supported and tested system
 
-- Surface Laptop 7 **13.8-inch / Romulus13**, X1E-80-100.
+- Surface Laptop 7 **15-inch / Romulus15**, X1E-80-100.
 - Firmware **175.235.235**. The local device bridge rejects other firmware versions
   and checks both the DMI identity and root device-tree compatible strings.
 - Linux **7.3.0-5-sl7.8.1**, arm64, Secure Boot and integrity lockdown enabled.

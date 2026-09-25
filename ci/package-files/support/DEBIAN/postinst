@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+case "$1" in
+    configure)
+        # Runs before any SL7 image is configured (it depends on this package).
+        /usr/lib/sl7-kernel/machine-identity migrate
+        ;;
+esac

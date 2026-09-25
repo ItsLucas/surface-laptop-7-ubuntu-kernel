@@ -1,7 +1,7 @@
 Subject: [PATCH] Revert "net: qrtr: Send HELLO message on endpoint register"
 
 Revert upstream 544d85de4dc22c01badfd8cefa59829ce35c4858 for the
-Romulus13 kernel build until a complete upstream resume fix is available.
+Romulus15 kernel build until a complete upstream resume fix is available.
 
 ath12k powers down firmware during system suspend while retaining its
 MHI/QRTR endpoint. Resume restarts firmware without registering a new
@@ -10,7 +10,7 @@ commit also removed the nameserver reply to incoming HELLO. On WCN7850,
 resume receives HELLO but never discovers the WLAN QMI service and times
 out waiting for restart completion.
 
-Restore the preceding handshake implementation. Tested on Romulus13 with
+Restore the preceding handshake implementation. Tested on Romulus15 with
 Ubuntu 7.3.0-5.5, WCN7850 firmware WLAN.HMT.1.1.c7-00108 and Secure Boot:
 deep resume discovers service 0x45 about 3 ms after HELLO and reconnects
 Wi-Fi with the original PCIe D3cold policy. Disabling D3cold alone did not
