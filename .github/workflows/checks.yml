@@ -34,9 +34,6 @@ jobs:
           DEBIAN_FRONTEND: noninteractive
         run: |
           apt-get install -y --no-install-recommends linux-headers-generic make patch kmod
-          cc=$(sed -n 's/^CONFIG_CC_VERSION_TEXT="\([^ ]*\).*/\1/p' /usr/src/linux-headers-*-generic/.config | head -n 1)
-          case "$cc" in
-            *gcc-[0-9]*) apt-get install -y --no-install-recommends "gcc-${cc##*gcc-}" ;;
-            *) apt-get install -y --no-install-recommends gcc ;;
-          esac
+          gcc_version=$(sed -n 's/^CONFIG_GCC_VERSION=//p' /usr/src/linux-headers-*-generic/.config | head -n 1)
+          apt-get install -y --no-install-recommends "gcc-$((gcc_version / 10000))"
       - run: python3 tools/build-spi-hid-module.py

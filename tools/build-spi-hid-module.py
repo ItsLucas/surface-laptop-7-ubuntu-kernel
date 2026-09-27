@@ -42,9 +42,15 @@ def compiler(build):
     if not match:
         raise SystemExit('CONFIG_CC_VERSION_TEXT missing from the headers config')
     cc = match.group(1)
-    if not shutil.which(cc):
-        raise SystemExit(f'{cc} is not installed; install the matching gcc package')
-    return cc
+    # The version text may name an unversioned driver; prefer the exact major.
+    version = re.search(r'^CONFIG_GCC_VERSION=(\d+)', text, re.M)
+    candidates = [cc]
+    if version and not re.search(r'-\d+$', cc):
+        candidates.insert(0, f'{cc}-{int(version.group(1)) // 10000}')
+    for candidate in candidates:
+        if shutil.which(candidate):
+            return candidate
+    raise SystemExit(f'none of {candidates} is installed; install the matching gcc package')
 
 
 def main():
