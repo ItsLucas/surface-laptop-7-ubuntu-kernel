@@ -16,3 +16,24 @@ jobs:
         run: |
           docker build -f tests/Packaging.Dockerfile -t sl7-package-check .
           docker run --rm -v "$GITHUB_WORKSPACE:/workspace:ro" sl7-package-check
+
+  # Minutes instead of the full kernel build: compile the patched SPI HID
+  # transport against Ubuntu's generic headers with -Werror and modpost.
+  spi-hid-module:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    container:
+      image: ubuntu:26.10@sha256:73b76549166d2d32444ccbd2b79b34381a1b3e25fd150cdd7fb12383fe7ebdc2
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - run: bash ci/apt-setup.sh
+      - name: Install generic headers and their compiler
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          apt-get install -y --no-install-recommends linux-headers-generic make patch kmod
+          gcc_version=$(sed -n 's/^CONFIG_GCC_VERSION=//p' /usr/src/linux-headers-*-generic/.config | head -n 1)
+          apt-get install -y --no-install-recommends "gcc-$((gcc_version / 10000))"
+      - run: python3 tools/build-spi-hid-module.py
