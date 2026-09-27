@@ -3,3 +3,9 @@
 0003-romulus15-gtch-spi-touchscreen.patch
 0004-spi-hid-power-lifecycle.patch
 0005-romulus15-gpio-panel-power.patch
+0007-spi-hid-bound-input-reports-and-reassemble-fragments.patch
+0008-spi-hid-recover-from-device-initiated-resets.patch
+0009-spi-hid-read-feature-responses-under-lock.patch
+0010-spi-hid-pad-output-reports.patch
+0011-spi-hid-power-cycle-unresponsive-devices.patch
+0012-spi-hid-propagate-supply-errors.patch
