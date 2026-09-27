@@ -13,7 +13,7 @@
 - 上游两份设备树只差`model`和`compatible`。
 - Stubble的两份硬件ID清单共用5个系列级CHID，15英寸也能匹配到Romulus13清单。
 
-两个尺寸在SMBIOS里只有SKU不同：13.8英寸是`Surface_Laptop_7th_Edition_2036`，15英寸是`…_2037`。
+两个尺寸在SMBIOS里只有SKU不同：13.8英寸是`Surface_Laptop_7th_Edition_2036`，15英寸是`…_2037`。商用版在编号前多一段`For_Business_`，例如测试机是`Surface_Laptop_7th_Edition_For_Business_2037`，迁移逻辑两种写法都识别。
 
 ## 本次改动
 
@@ -42,10 +42,16 @@ dpkg -l 'linux-image-*sl7*' linux-sl7 linux-sl7-support | grep '^ii'
 ```
 
 预期结果：
-- `product_sku`为`Surface_Laptop_7th_Edition_2037`。
+- `product_sku`为`Surface_Laptop_7th_Edition_2037`或`Surface_Laptop_7th_Edition_For_Business_2037`。
 - 当前model仍显示13.8 inch，因为正在运行的是旧内核。
 
-**如果SKU不是`…_2037`，先停下来，把输出发给我。**迁移逻辑只识别这个值。
+**如果SKU不以`_2037`结尾，先停下来，把输出发给我。**迁移逻辑只识别这两个值。
+
+注意：2026-09-27之前构建的包只识别`Surface_Laptop_7th_Edition_2037`，在商用版上不会写`/etc/flash-kernel/machine`，安装新内核时flash-kernel会去找`romulus13.dtb`而失败。用这些包时，在第3步安装前手动写入：
+
+```sh
+echo 'Microsoft Surface Laptop 7 (15 inch)' | sudo tee /etc/flash-kernel/machine
+```
 
 ## 2. 先修改本机Wi-Fi MAC脚本（必须）
 
