@@ -8,11 +8,13 @@ SMBIOS SKU distinguishes the two sizes (stubble hwids/txt records).
 """
 import os
 from pathlib import Path
+import re
 import sys
 
 PRODUCT = 'Microsoft Surface Laptop, 7th Edition'
-SKUS = {'Surface_Laptop_7th_Edition_2036': 'romulus13',
-        'Surface_Laptop_7th_Edition_2037': 'romulus15'}
+# Business units report Surface_Laptop_7th_Edition_For_Business_203x.
+SKU = re.compile(r'Surface_Laptop_7th_Edition_(?:For_Business_)?(203[67])')
+SIZES = {'2036': 'romulus13', '2037': 'romulus15'}
 MACHINES = {'romulus13': 'Microsoft Surface Laptop 7 (13.8 inch)',
             'romulus15': 'Microsoft Surface Laptop 7 (15 inch)'}
 
@@ -34,7 +36,8 @@ def identify():
     """romulus15, romulus13, unknown (another SL7 SKU) or None (not an SL7)."""
     if dmi('sys_vendor') != 'Microsoft Corporation' or dmi('product_name') != PRODUCT:
         return None
-    return SKUS.get(dmi('product_sku'), 'unknown')
+    match = SKU.fullmatch(dmi('product_sku'))
+    return SIZES[match.group(1)] if match else 'unknown'
 
 
 def migrate():

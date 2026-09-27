@@ -39,7 +39,7 @@ def simulate_devices():
     write('/tmp/sl7-dt-model', 'Microsoft Surface Laptop 7 (13.8 inch)')
     for name, value in [('sys_vendor', 'Microsoft Corporation'),
                         ('product_name', 'Microsoft Surface Laptop, 7th Edition'),
-                        ('product_sku', 'Surface_Laptop_7th_Edition_2037')]:
+                        ('product_sku', 'Surface_Laptop_7th_Edition_For_Business_2037')]:
         write(Path('/tmp/sl7-dmi') / name, value + '\n')
     os.environ.update(FK_PROC_DTMODEL='/tmp/sl7-dt-model', SL7_DMI_DIR='/tmp/sl7-dmi')
     write('/usr/sbin/grub-probe', '''#!/usr/bin/python3

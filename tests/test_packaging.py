@@ -101,7 +101,11 @@ class PackagingTests(unittest.TestCase):
             ('Surface_Laptop_7th_Edition_2037', legacy, wanted, legacy),
             ('Surface_Laptop_7th_Edition_2037', wanted, wanted, None),
             ('Surface_Laptop_7th_Edition_2037', 'Custom board\n', 'Custom board\n', None),
+            ('Surface_Laptop_7th_Edition_For_Business_2037', None, wanted, None),
+            ('Surface_Laptop_7th_Edition_For_Business_2037', legacy, wanted, legacy),
             ('Surface_Laptop_7th_Edition_2036', None, None, None),
+            ('Surface_Laptop_7th_Edition_For_Business_2036', legacy, legacy, None),
+            ('Surface_Laptop_7th_Edition_For_Business_9999', legacy, legacy, None),
             ('Surface_Laptop_7th_Edition_9999', legacy, legacy, None),
             (None, None, None, None)]
         for sku, existing, expected, backup in cases:
@@ -132,7 +136,8 @@ class PackagingTests(unittest.TestCase):
     def test_image_refuses_only_the_13_8_inch_sku(self):
         preinst = (ROOT / 'ci/package-files/image/preinst').read_text().replace('@RELEASE@', '7.3.0-5-sl7.1.1')
         for sku, status in [('Surface_Laptop_7th_Edition_2036', 1), ('Surface_Laptop_7th_Edition_2037', 0),
-                            (None, 0)]:
+                            ('Surface_Laptop_7th_Edition_For_Business_2036', 1),
+                            ('Surface_Laptop_7th_Edition_For_Business_2037', 0), (None, 0)]:
             with self.subTest(sku=sku), tempfile.TemporaryDirectory() as dmi:
                 if sku:
                     (Path(dmi) / 'product_sku').write_text(sku + '\n')
