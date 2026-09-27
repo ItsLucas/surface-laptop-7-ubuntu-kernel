@@ -1,20 +1,20 @@
-Subject: [PATCH] arm64: dts: Romulus13 touch power GPIO ownership and panel link
+Subject: [PATCH] arm64: dts: Romulus15 touch power GPIO ownership and panel link
 
 Companion to spi-hid power lifecycle changes; test image only.
 ---
---- a/arch/arm64/boot/dts/qcom/x1e80100-microsoft-romulus13.dts
-+++ b/arch/arm64/boot/dts/qcom/x1e80100-microsoft-romulus13.dts
+--- a/arch/arm64/boot/dts/qcom/x1e80100-microsoft-romulus15.dts
++++ b/arch/arm64/boot/dts/qcom/x1e80100-microsoft-romulus15.dts
 @@ -14,3 +14,5 @@
  };
  
- #include "x1e80100-microsoft-romulus13-gtch-test.dtsi"
+ #include "x1e80100-microsoft-romulus15-touchscreen.dtsi"
 +
-+#include "x1e80100-romulus13-gpio-power.dtsi"
++#include "x1e80100-microsoft-romulus15-gpio-power.dtsi"
 --- /dev/null
-+++ b/arch/arm64/boot/dts/qcom/x1e80100-romulus13-gpio-power.dtsi
++++ b/arch/arm64/boot/dts/qcom/x1e80100-microsoft-romulus15-gpio-power.dtsi
 @@ -0,0 +1,30 @@
 +// SPDX-License-Identifier: BSD-3-Clause
-+/* GPIO ownership and sequencing from this Romulus13's HSPI/GTCH ACPI. */
++/* GPIO ownership and sequencing from this Romulus15's HSPI/GTCH ACPI. */
 +
 +&vreg_ts_5p0 {
 +	regulator-boot-on;

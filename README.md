@@ -1,13 +1,17 @@
 # Surface Laptop 7 Ubuntu kernel automation
 
-Daily native ARM64 builds of Ubuntu **26.10 / stonking generic**, with the Romulus13 Wi-Fi, QSPI touchpad, SPI touchscreen and power-management patch series.
+Daily native ARM64 builds of Ubuntu **26.10 / stonking generic** for the **Surface Laptop 7 15-inch (Romulus15)**, with its Wi-Fi, QSPI touchpad, SPI touchscreen and power-management patch series.
+
+The 13.8-inch Romulus13 is not supported: its touchscreen is a different (I2C) design, and the image package refuses to install on its SMBIOS SKU `Surface_Laptop_7th_Edition_2036`. Builds before this correction were mislabeled Romulus13 and embedded the Romulus13 DTB, which upstream keeps identical to Romulus15 apart from its name. The support package identifies SKU `…_2037` and sets flash-kernel's machine name so upgrades from those builds find the Romulus15 DTB. See the [migration checklist](docs/15-inch-migration.zh-CN.md).
 
 The version resolver follows Ubuntu's generic metapackage, including future **7.3** kernels. Patch conflicts or build failures stop the pipeline and open/update a GitHub issue mentioning the repository owner. Successful builds produce signed prerelease debs plus reproducible unsigned bundles; kernels are never automatically installed.
 
-The 7.3 Wi-Fi resume workaround reverts the registration-only QRTR HELLO change.
-One Romulus13 deep-resume test passed with the original PCIe power policy.
-A reviewed source-state check applies this revert only when needed; unknown
-upstream changes still stop the build. See the [diagnosis and validation scope](docs/7.3-wifi-resume.zh-CN.md).
+Ubuntu 7.3.0-6.6 (upstream v7.3-rc4) carries the upstream fix for the 7.3 Wi-Fi
+resume regression (QRTR resends HELLO on MHI resume), so the local QRTR revert
+(0006) is retired. It had passed one deep-resume test on the 15-inch with the
+original PCIe power policy; the upstream fix needs the same hardware check.
+Unknown upstream changes to patched code still stop the build. See the
+[diagnosis and validation scope](docs/7.3-wifi-resume.zh-CN.md).
 
 Configure the **public certificate** in repository variable `MODULE_CERT_PEM` and the two signing key/certificate pairs as encrypted Secrets in the main-only `secure-boot-signing` Environment. The separate signing job verifies signatures and handles keys only in a network-disabled container; PRs and compilation jobs never receive them. This repository contains reusable patches and tooling, without machine firmware, calibration or network settings.
 
@@ -31,7 +35,7 @@ Secure Boot certificate enrollment is still required; no headers are provided ye
 See the Chinese guide for setup and [archive operations](repo/README.md) for deployment.
 ## Experimental power telemetry
 
-On the tested Romulus13 / BIOS 175.235.235, the next kernel build includes
+On the tested 15-inch Romulus15 / BIOS 175.235.235, the next kernel build includes
 read-only Qualcomm PLD hwmon modules. They expose seven one-second average power
 channels to `sensors`, with stale-data and PM handling. See the
 [driver documentation](drivers/qcom-pld-power/README.md),

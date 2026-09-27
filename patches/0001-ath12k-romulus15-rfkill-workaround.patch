@@ -1,10 +1,10 @@
-Subject: [PATCH] wifi: ath12k: avoid hard rfkill on Surface Laptop 7 13.8-inch
+Subject: [PATCH] wifi: ath12k: avoid hard rfkill on Surface Laptop 7 15-inch
 
 Port the Surface Laptop 7 rfkill workaround to Ubuntu linux 7.2.0-5.5.
-The WCN7850 initializes successfully on the Romulus13 board but reports a
+The WCN7850 initializes successfully on the Romulus15 board but reports a
 persistent hardware block after firmware rfkill configuration.
 
-Skip that configuration only for WCN7850 hw2.0 on microsoft,romulus13.
+Skip that configuration only for WCN7850 hw2.0 on microsoft,romulus15.
 Keep the existing capability and ACPI checks and preserve normal rfkill
 handling on other boards. No public data structures or exports change.
 
@@ -21,7 +21,7 @@ This is a local workaround pending a proper platform rfkill fix.
  
 +	/* Avoid the persistent hard block after rfkill setup on this board. */
 +	if (ab->hw_rev == ATH12K_HW_WCN7850_HW20 &&
-+	    of_machine_is_compatible("microsoft,romulus13")) {
++	    of_machine_is_compatible("microsoft,romulus15")) {
 +		ath12k_info(ab, "applying Surface Laptop 7 rfkill workaround\n");
 +		return 0;
 +	}

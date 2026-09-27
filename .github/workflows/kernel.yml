@@ -183,9 +183,9 @@ jobs:
           KERNEL_RELEASE: ${{ needs.resolve.outputs.release }}
         run: |
           cat > notes.md <<'EOF'
-          Ubuntu 26.10 ARM64 + Romulus13 Wi-Fi / touchpad / SPI touchscreen / power patches.
+          Ubuntu 26.10 ARM64 + Surface Laptop 7 15-inch (Romulus15) Wi-Fi / touchpad / SPI touchscreen / power patches. Not for the 13.8-inch.
 
-          **Signed build candidate; not hardware-validated.** The linux-image deb contains signed modules and an EFI image with the Romulus13 device tree. Review SIGNING.json and BUILD.json. Signing keys are supplied only to the main-branch environment signing job and are excluded from artifacts. No firmware, machine calibration or personal network settings are included.
+          **Signed build candidate; not hardware-validated.** The linux-image deb contains signed modules and an EFI image with the Romulus15 device tree. Review SIGNING.json and BUILD.json. Signing keys are supplied only to the main-branch environment signing job and are excluded from artifacts. No firmware, machine calibration or personal network settings are included.
 
           Install the matching linux-sl7, linux-sl7-support and linux-image debs through APT. Ubuntu kernel hooks generate initrd and update the existing GRUB2 menu automatically. Keep the currently working kernel and Secure Boot enabled. APT subscribers receive candidates at https://mirrors.5cena.cc/; stable promotion requires hardware validation. See README.zh-CN.md for certificate enrollment and setup. The unsigned bundle remains available for independent signing and reproducibility.
           EOF

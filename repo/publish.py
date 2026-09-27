@@ -110,7 +110,7 @@ def publish(root, component, signing_key, incoming=None):
             f'Date: {email.utils.format_datetime(now, usegmt=True)}\n'
             f'Valid-Until: {email.utils.format_datetime(now + datetime.timedelta(days=14), usegmt=True)}\n'
             'Architectures: arm64\nComponents: candidate stable\nAcquire-By-Hash: yes\n'
-            'Description: Ubuntu 26.10 Surface Laptop 7 13.8-inch kernels\nSHA256:\n' + ''.join(records))
+            'Description: Ubuntu 26.10 Surface Laptop 7 15-inch kernels\nSHA256:\n' + ''.join(records))
         gpg = ['gpg', '--homedir', str(root / 'gnupg'), '--batch', '--yes', '--local-user', signing_key]
         subprocess.run(gpg + ['--clearsign', '--output', suite / 'InRelease', suite / 'Release'], check=True)
         subprocess.run(gpg + ['--armor', '--detach-sign', '--output', suite / 'Release.gpg', suite / 'Release'], check=True)

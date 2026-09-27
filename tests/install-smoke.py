@@ -14,7 +14,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'ci'))
-from packaging import build_packages
+from packaging import build_packages, ROMULUS_DTB
 from pe_fixture import image_with_dtb
 
 
@@ -29,8 +29,19 @@ def write(path, contents, mode=0o644):
     path.chmod(mode)
 
 
+LEGACY_DTB = 'qcom/x1e80100-microsoft-romulus13.dtb'
+
+
 def simulate_devices():
-    write('/etc/flash-kernel/machine', 'Microsoft Surface Laptop 7 (13.8 inch)\n')
+    # A 15-inch machine still running a pre-correction kernel's Romulus13 DTB,
+    # with no flash-kernel machine override: flash-kernel sees the 13.8-inch.
+    assert not Path('/etc/flash-kernel/machine').exists()
+    write('/tmp/sl7-dt-model', 'Microsoft Surface Laptop 7 (13.8 inch)')
+    for name, value in [('sys_vendor', 'Microsoft Corporation'),
+                        ('product_name', 'Microsoft Surface Laptop, 7th Edition'),
+                        ('product_sku', 'Surface_Laptop_7th_Edition_2037')]:
+        write(Path('/tmp/sl7-dmi') / name, value + '\n')
+    os.environ.update(FK_PROC_DTMODEL='/tmp/sl7-dt-model', SL7_DMI_DIR='/tmp/sl7-dmi')
     write('/usr/sbin/grub-probe', '''#!/usr/bin/python3
 import sys
 a = sys.argv[1:]
@@ -94,22 +105,53 @@ def install_stock_fixture():
           'Package: linux-image-9.9.0-99-generic\nVersion: 9.9.0-99.99\n'
           'Architecture: all\nMaintainer: SL7 Test <test@example.invalid>\n'
           'Description: Non-bootable stock-kernel installation fixture\n')
-    image, dtb = image_with_dtb()
+    image, _ = image_with_dtb()
     (stage / 'boot').mkdir()
     (stage / 'boot/vmlinuz-9.9.0-99-generic').write_bytes(image)
     write(stage / 'boot/initrd.img-9.9.0-99-generic', 'stock-fallback-fixture\n')
-    provided = stage / 'usr/lib/linux-image-9.9.0-99-generic/qcom/x1e80100-microsoft-romulus13.dtb'
-    provided.parent.mkdir(parents=True)
-    provided.write_bytes(dtb)
+    # Stock kernels ship both Surface Laptop 7 device trees.
+    for compatible, dtb in [(b'microsoft,romulus13', LEGACY_DTB), (b'microsoft,romulus15', ROMULUS_DTB)]:
+        provided = stage / 'usr/lib/linux-image-9.9.0-99-generic' / dtb
+        provided.parent.mkdir(parents=True, exist_ok=True)
+        provided.write_bytes(image_with_dtb(compatible)[1])
     package = stage.parent / 'stock-fixture.deb'
     run('dpkg-deb', '--root-owner-group', '--build', stage, package)
     run('dpkg', '-i', package)
 
 
+def install_legacy_sl7(release):
+    """An SL7 kernel published before the 15-inch correction, as flash-kernel left it."""
+    stage = Path('/tmp/sl7-smoke/legacy-package')
+    write(stage / 'DEBIAN/control',
+          f'Package: linux-image-{release}\nVersion: 7.1.0-1.1+sl7.899.1\n'
+          'Architecture: all\nMaintainer: SL7 Test <test@example.invalid>\n'
+          'Description: Non-bootable Romulus13-era SL7 kernel fixture\n')
+    image, dtb = image_with_dtb(b'microsoft,romulus13')
+    (stage / 'boot').mkdir()
+    (stage / ('boot/vmlinuz-' + release)).write_bytes(image)
+    write(stage / ('boot/initrd.img-' + release), 'legacy-sl7-fixture\n')
+    provided = stage / ('usr/lib/linux-image-' + release) / LEGACY_DTB
+    provided.parent.mkdir(parents=True)
+    provided.write_bytes(dtb)
+    package = stage.parent / 'legacy-fixture.deb'
+    run('dpkg-deb', '--root-owner-group', '--build', stage, package)
+    run('dpkg', '-i', package)
+    run('flash-kernel', release)
+    assert Path('/boot/dtb-' + release).resolve() == Path('/boot/dtbs') / release / LEGACY_DTB
+
+
+def assert_legacy_bootable(release, menu):
+    # Still offered, still without GRUB's external-DTB command.
+    entries = [e for e in menu.split('menuentry ')[1:] if 'vmlinuz-' + release in e]
+    assert entries and not any('devicetree' in e.split('\n}', 1)[0] for e in entries)
+    assert not Path('/boot/dtb-' + release).is_symlink()
+
+
 def assert_installed(release):
-    dtb = 'qcom/x1e80100-microsoft-romulus13.dtb'
+    dtb = ROMULUS_DTB
     provided = Path('/usr/lib/linux-image-' + release) / dtb
     installed = Path('/boot/dtbs') / release / dtb
+    assert Path('/etc/flash-kernel/machine').read_text() == 'Microsoft Surface Laptop 7 (15 inch)\n'
     assert provided.is_file() and installed.read_bytes() == provided.read_bytes()
     initrd = Path('/boot/initrd.img-' + release)
     assert initrd.stat().st_size > 0
@@ -144,12 +186,14 @@ def main():
     if not Path('/.dockerenv').exists() or os.geteuid() != 0:
         raise SystemExit('Run only as root in a disposable container with no host boot/device mounts')
     simulate_devices()
-    first, second = '7.1.0-1-sl7.900.1', '7.1.0-1-sl7.901.1'
+    legacy, first, second = '7.1.0-1-sl7.899.1', '7.1.0-1-sl7.900.1', '7.1.0-1-sl7.901.1'
     write('/etc/default/grub.d/zz-sl7-apt-follow.cfg', 'SL7_FOLLOW_APT=1\n')
     # A newer stock kernel must remain available without displacing SL7.
     install_stock_fixture()
+    install_legacy_sl7(legacy)
     install(fixture(first, '7.1.0-1.1+sl7.900.1'))
     before = assert_installed(first)
+    assert_legacy_bootable(legacy, before)
     second_packages = fixture(second, '7.1.0-1.1+sl7.901.1')
     failure_hook = Path('/etc/kernel/postinst.d/00-fail-sl7-test')
     write(failure_hook, '#!/bin/sh\nexit 42\n', 0o755)
@@ -179,7 +223,9 @@ def main():
         assert not Path('/boot/initrd.img-' + release).exists()
         assert release not in Path('/boot/grub/grub.cfg').read_text()
         assert_installed(first)
-    print('PASS: install, initrd contents, GRUB, failed-hook recovery, reconfigure, coexistence and purge')
+    assert_legacy_bootable(legacy, Path('/boot/grub/grub.cfg').read_text())
+    print('PASS: Romulus13-era migration, install, initrd contents, GRUB, failed-hook recovery, '
+          'reconfigure, coexistence and purge')
 
 
 if __name__ == '__main__':

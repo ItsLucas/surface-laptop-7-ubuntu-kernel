@@ -1,7 +1,9 @@
 # PLD power validation record
 
-2026-09-19; Surface Laptop 7 13.8-inch / Romulus13, X1E-80-100,
+2026-09-19; Surface Laptop 7 15-inch / Romulus15, X1E-80-100,
 BIOS 175.235.235, Linux 7.3.0-5-sl7.8.1, Secure Boot enabled.
+(Originally recorded as the 13.8-inch Romulus13, the DTB that kernel embedded;
+SMBIOS SKU `Surface_Laptop_7th_Edition_2037` identifies the 15-inch.)
 This is an experimental, tested-platform feature, not a general X1E support claim.
 
 ## Completed checks

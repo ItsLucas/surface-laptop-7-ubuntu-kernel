@@ -1,20 +1,20 @@
-Subject: [PATCH] arm64: Surface Laptop 7 QSPI touchpad support on Ubuntu 7.3
+Subject: [PATCH] arm64: Surface Laptop 7 QSPI touchpad support on Ubuntu 7.2
 
-Port the existing ELLX-derived QSPI/GPI and HID-over-SPI changes onto
-Ubuntu linux 7.3.0-5.5 (upstream v7.3-rc3).
+Port the QSPI/GPI and HID-over-SPI v3 implementation from ELLX commit
+0e9944fa4cf2ccf575f5162bfd53ed4dc1592251 to Ubuntu linux 7.2.0-5.5.
+Preserve Ubuntu changes using a three-way merge against the community
+commit parent. Enable the touchpad wiring only for microsoft,romulus15.
 
-Retain the new geni_spi_desc resource/clock/power callbacks and SA8255P
-match entry. Extend that descriptor with the QSPI flag instead of adding
-a second match-data structure. Use the new scoped runtime-PM acquisition
-on error returns; do not reintroduce the old manual PM cleanup label.
-All DMA, HID transport and Romulus13 wiring changes retain the 7.2 patch.
+Adapt the HID transport to in-tree Kbuild and drain all asynchronous
+workers on removal before freeing buffers. Drop unused read helper and
+locals. Firmware protocol and board power sequencing follow the community
+implementation. Camera, audio and unrelated ELLX changes are excluded.
 
-Origin: ELLX commit 0e9944fa4cf2ccf575f5162bfd53ed4dc1592251
-https://github.com/ProgrammerIn-wonderland/ELLX-Kernel
+Source: https://github.com/ProgrammerIn-wonderland/ELLX-Kernel
 ---
 --- a/drivers/spi/spi-geni-qcom.c
 +++ b/drivers/spi/spi-geni-qcom.c
-@@ -7,6 +7,7 @@
+@@ -5,6 +5,7 @@
  #include <trace/events/qcom_geni_spi.h>
  
  #include <linux/clk.h>
@@ -22,7 +22,7 @@ https://github.com/ProgrammerIn-wonderland/ELLX-Kernel
  #include <linux/dmaengine.h>
  #include <linux/dma-mapping.h>
  #include <linux/dma/qcom-gpi-dma.h>
-@@ -80,16 +81,67 @@
+@@ -78,9 +79,68 @@
  #define GSI_CPHA		BIT(4)
  #define GSI_CPOL		BIT(5)
  
@@ -64,6 +64,14 @@ https://github.com/ProgrammerIn-wonderland/ELLX-Kernel
 +#define QSPI_DEFAULT_MAX_SPEED_HZ	20000000
 +
 +/**
++ * struct spi_geni_data - per-compatible behavioral flags
++ * @qspi_mode: controller runs in QSPI 1-4-4 mode with 4 data lanes
++ */
++struct spi_geni_data {
++	bool qspi_mode;
++};
++
++/**
 + * struct spi_geni_qspi_params - per-SE QSPI tunables read from DT
 + * @read_opcode: first TX byte that identifies a read transfer (e.g. 0xEB)
 + * @dummy_clk_cnt: dummy clocks inserted between address and read data
@@ -75,29 +83,22 @@ https://github.com/ProgrammerIn-wonderland/ELLX-Kernel
 +	u32 tx_cmd_len;
 +};
 +
- struct geni_spi_desc {
- 	int (*resources_init)(struct geni_se *se);
- 	int (*set_rate)(struct geni_se *se, unsigned long clk_freq);
- 	int (*power_on)(struct geni_se *se);
- 	int (*power_off)(struct geni_se *se);
-+	bool qspi_mode;
- };
- 
  struct spi_geni_master {
  	struct geni_se se;
  	struct device *dev;
++	const struct spi_geni_data *data;
 +	struct spi_geni_qspi_params qspi;
  	u32 tx_fifo_depth;
  	u32 fifo_width_bits;
  	u32 tx_wm;
-@@ -116,6 +168,52 @@
+@@ -106,6 +166,52 @@
+ 	struct dma_chan *rx;
  	int cur_xfer_mode;
- 	const struct geni_spi_desc *dev_data;
  };
 +
 +static inline bool spi_geni_is_qspi(const struct spi_geni_master *mas)
 +{
-+	return mas->dev_data->qspi_mode;
++	return mas->data && mas->data->qspi_mode;
 +}
 +
 +/* Enable all 4 data lanes on the GENI output mux for QSPI. */
@@ -114,7 +115,7 @@ https://github.com/ProgrammerIn-wonderland/ELLX-Kernel
 +/*
 + * Reprogram the SE IRQ / DMA / event registers for GPI DMA.
 + *
-+ * geni_se_resources_activate() (called from runtime_resume) writes a fixed set of
++ * geni_se_resources_on() (called from runtime_resume) writes a fixed set of
 + * values into SE_IRQ_EN that are correct for FIFO/SE_DMA mode but clobber the
 + * GPI configuration. The QSPI SE_PROTO (9) also needs different masks than
 + * the defaults. Call this from prepare_message (post resume, pre transfer)
@@ -143,7 +144,7 @@ https://github.com/ProgrammerIn-wonderland/ELLX-Kernel
  
  static void spi_slv_setup(struct spi_geni_master *mas)
  {
-@@ -439,7 +537,20 @@
+@@ -420,7 +526,20 @@
  	}
  
  	if (xfer->tx_buf && xfer->rx_buf) {
@@ -165,7 +166,7 @@ https://github.com/ProgrammerIn-wonderland/ELLX-Kernel
  	} else if (xfer->tx_buf) {
  		peripheral.cmd = SPI_TX;
  		peripheral.rx_len = 0;
-@@ -478,6 +589,44 @@
+@@ -459,6 +578,44 @@
  	peripheral.fragmentation = list_is_last(&xfer->transfer_list, &spi->cur_msg->transfers) ?
  				   xfer->cs_change : !xfer->cs_change;
  
@@ -210,7 +211,7 @@ https://github.com/ProgrammerIn-wonderland/ELLX-Kernel
  	if (peripheral.cmd & SPI_RX) {
  		dmaengine_slave_config(mas->rx, &config);
  		rx_desc = dmaengine_prep_slave_sg(mas->rx, xfer->rx_sg.sgl, xfer->rx_sg.nents,
-@@ -500,8 +649,18 @@
+@@ -481,8 +638,18 @@
  		return -EIO;
  	}
  
@@ -231,7 +232,7 @@ https://github.com/ProgrammerIn-wonderland/ELLX-Kernel
  
  	if (peripheral.cmd & SPI_RX)
  		dmaengine_submit(rx_desc);
-@@ -567,7 +726,13 @@
+@@ -548,7 +715,13 @@
  		return ret;
  
  	case GENI_GPI_DMA:
@@ -246,8 +247,8 @@ https://github.com/ProgrammerIn-wonderland/ELLX-Kernel
  		return 0;
  	}
  
-@@ -647,6 +812,18 @@
- 			return -EINVAL;
+@@ -623,6 +796,18 @@
+ 			goto out_pm;
  		}
  		spi_slv_setup(mas);
 +	} else if (spi_geni_is_qspi(mas)) {
@@ -259,13 +260,13 @@ https://github.com/ProgrammerIn-wonderland/ELLX-Kernel
 +		if (proto != QSPI_SE_PROTO) {
 +			dev_err(mas->dev, "Expected QSPI proto %d, got %d\n",
 +				QSPI_SE_PROTO, proto);
-+			return -EINVAL;
++			goto out_pm;
 +		}
 +		qspi_setup_io_mux(mas);
  	} else if (proto == GENI_SE_INVALID_PROTO) {
  		ret = geni_load_se_firmware(se, GENI_SE_SPI);
  		if (ret) {
-@@ -678,9 +855,28 @@
+@@ -654,9 +839,28 @@
  	else
  		mas->oversampling = 1;
  
@@ -294,11 +295,11 @@ https://github.com/ProgrammerIn-wonderland/ELLX-Kernel
  		ret = spi_geni_grab_gpi_chan(mas);
  		if (!ret) { /* success case */
  			mas->cur_xfer_mode = GENI_GPI_DMA;
-@@ -688,6 +884,16 @@
+@@ -664,6 +868,16 @@
  			dev_dbg(mas->dev, "Using GPI DMA mode for SPI\n");
  			break;
  		} else if (ret == -EPROBE_DEFER) {
-+			return ret;
++			goto out_pm;
 +		}
 +		/*
 +		 * For QSPI there is no usable FIFO fallback: FIFO mode cannot
@@ -308,12 +309,18 @@ https://github.com/ProgrammerIn-wonderland/ELLX-Kernel
 +		if (spi_geni_is_qspi(mas)) {
 +			dev_err(mas->dev, "Failed to grab GPI DMA channels for QSPI: %d\n",
 +				ret);
- 			return ret;
+ 			goto out_pm;
  		}
  		/*
-@@ -1106,15 +1312,30 @@
- 	if (!mas->dev_data)
- 		return -EINVAL;
+@@ -1076,11 +1290,24 @@
+ 	mas = spi_controller_get_devdata(spi);
+ 	mas->irq = irq;
+ 	mas->dev = dev;
++	mas->data = device_get_match_data(dev);
+ 	mas->se.dev = dev;
+ 	mas->se.wrapper = dev_get_drvdata(dev->parent);
+ 	mas->se.base = base;
+ 	mas->se.clk = clk;
  
 +	if (spi_geni_is_qspi(mas)) {
 +		mas->qspi.read_opcode = QSPI_DEFAULT_READ_OPCODE;
@@ -327,9 +334,10 @@ https://github.com/ProgrammerIn-wonderland/ELLX-Kernel
 +					 &mas->qspi.tx_cmd_len);
 +	}
 +
- 	ret = mas->dev_data->resources_init(&mas->se);
+ 	ret = devm_pm_opp_set_clkname(&pdev->dev, "se");
  	if (ret)
  		return ret;
+@@ -1093,9 +1320,12 @@
  
  	spi->bus_num = -1;
  	spi->mode_bits = SPI_CPOL | SPI_CPHA | SPI_LOOP | SPI_CS_HIGH;
@@ -343,22 +351,17 @@ https://github.com/ProgrammerIn-wonderland/ELLX-Kernel
  	spi->max_dma_len = 0xffff0; /* 24 bits for tx/rx dma length */
  	spi->prepare_message = spi_geni_prepare_message;
  	spi->transfer_one = spi_geni_transfer_one;
-@@ -1233,9 +1454,18 @@
- 	.set_rate = geni_se_set_perf_opp,
+@@ -1221,8 +1451,13 @@
+ 	SET_SYSTEM_SLEEP_PM_OPS(spi_geni_suspend, spi_geni_resume)
  };
  
-+static const struct geni_spi_desc geni_qspi = {
-+	.resources_init = geni_se_resources_init,
-+	.set_rate = geni_spi_set_clock_and_bw,
-+	.power_on = geni_se_resources_activate,
-+	.power_off = geni_se_resources_deactivate,
++static const struct spi_geni_data spi_geni_qspi_data = {
 +	.qspi_mode = true,
 +};
 +
  static const struct of_device_id spi_geni_dt_match[] = {
- 	{ .compatible = "qcom,geni-spi", .data = &geni_spi },
- 	{ .compatible = "qcom,sa8255p-geni-spi", .data = &sa8255p_geni_spi },
-+	{ .compatible = "qcom,geni-spi-qspi", .data = &geni_qspi },
+ 	{ .compatible = "qcom,geni-spi" },
++	{ .compatible = "qcom,geni-spi-qspi", .data = &spi_geni_qspi_data },
  	{}
  };
  MODULE_DEVICE_TABLE(of, spi_geni_dt_match);
@@ -601,16 +604,16 @@ https://github.com/ProgrammerIn-wonderland/ELLX-Kernel
  obj-$(CONFIG_INTEL_ISH_HID)	+= intel-ish-hid/
  
  obj-$(CONFIG_AMD_SFH_HID)       += amd-sfh-hid/
---- a/arch/arm64/boot/dts/qcom/x1e80100-microsoft-romulus13.dts
-+++ b/arch/arm64/boot/dts/qcom/x1e80100-microsoft-romulus13.dts
+--- a/arch/arm64/boot/dts/qcom/x1e80100-microsoft-romulus15.dts
++++ b/arch/arm64/boot/dts/qcom/x1e80100-microsoft-romulus15.dts
 @@ -6,6 +6,7 @@
  /dts-v1/;
  
  #include "x1e80100-microsoft-romulus.dtsi"
-+#include "x1e80100-microsoft-romulus13-touchpad.dtsi"
++#include "x1e80100-microsoft-romulus15-touchpad.dtsi"
  
  / {
- 	model = "Microsoft Surface Laptop 7 (13.8 inch)";
+ 	model = "Microsoft Surface Laptop 7 (15 inch)";
 --- /dev/null
 +++ b/drivers/hid/spi-hid/Kconfig
 @@ -0,0 +1,7 @@
@@ -1832,7 +1835,7 @@ https://github.com/ProgrammerIn-wonderland/ELLX-Kernel
 +
 +#endif
 --- /dev/null
-+++ b/arch/arm64/boot/dts/qcom/x1e80100-microsoft-romulus13-touchpad.dtsi
++++ b/arch/arm64/boot/dts/qcom/x1e80100-microsoft-romulus15-touchpad.dtsi
 @@ -0,0 +1,94 @@
 +// SPDX-License-Identifier: BSD-3-Clause
 +/* QSPI touchpad wiring from the ELLX Surface Laptop 7 support tree. */
