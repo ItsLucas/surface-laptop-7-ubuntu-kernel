@@ -1,2 +1,3 @@
 # Reviewed postimage detection only; unknown conflicts must fail the build.
-0006-revert-qrtr-register-only-hello.patch
+# Empty: 0006 (QRTR HELLO revert) retired once Ubuntu 7.3.0-6.6 carried the
+# upstream resend-HELLO-on-MHI-resume fix; see docs/7.3-wifi-resume.zh-CN.md.

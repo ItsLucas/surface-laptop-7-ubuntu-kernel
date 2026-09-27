@@ -6,10 +6,12 @@ The 13.8-inch Romulus13 is not supported: its touchscreen is a different (I2C) d
 
 The version resolver follows Ubuntu's generic metapackage, including future **7.3** kernels. Patch conflicts or build failures stop the pipeline and open/update a GitHub issue mentioning the repository owner. Successful builds produce signed prerelease debs plus reproducible unsigned bundles; kernels are never automatically installed.
 
-The 7.3 Wi-Fi resume workaround reverts the registration-only QRTR HELLO change.
-One deep-resume test on the 15-inch passed with the original PCIe power policy.
-A reviewed source-state check applies this revert only when needed; unknown
-upstream changes still stop the build. See the [diagnosis and validation scope](docs/7.3-wifi-resume.zh-CN.md).
+Ubuntu 7.3.0-6.6 (upstream v7.3-rc4) carries the upstream fix for the 7.3 Wi-Fi
+resume regression (QRTR resends HELLO on MHI resume), so the local QRTR revert
+(0006) is retired. It had passed one deep-resume test on the 15-inch with the
+original PCIe power policy; the upstream fix needs the same hardware check.
+Unknown upstream changes to patched code still stop the build. See the
+[diagnosis and validation scope](docs/7.3-wifi-resume.zh-CN.md).
 
 Configure the **public certificate** in repository variable `MODULE_CERT_PEM` and the two signing key/certificate pairs as encrypted Secrets in the main-only `secure-boot-signing` Environment. The separate signing job verifies signatures and handles keys only in a network-disabled container; PRs and compilation jobs never receive them. This repository contains reusable patches and tooling, without machine firmware, calibration or network settings.
 

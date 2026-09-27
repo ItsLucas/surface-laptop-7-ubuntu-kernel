@@ -117,6 +117,15 @@ sensors | grep -A9 -i pld                           # PLD功耗通道（sl7_pld_
 
 最关键的是Wi-Fi。0001的rfkill绕过现在按romulus15匹配，如果匹配不上，`rfkill list`会显示hard blocked。
 
+这也是第一个不带0006 QRTR回退的7.3.0-6内核，Wi-Fi睡眠恢复改由上游修复负责。deep睡眠至少做3轮，每轮检查：
+
+```sh
+journalctl -k -b | grep -iE 'ath12k.*(timeout|-110|failed)|qrtr|restart completion'
+cat /sys/power/suspend_stats/failed_resume
+```
+
+预期无超时，`failed_resume`为0，开盖后Wi-Fi自动重连、没有20秒以上的黑屏。
+
 ## 5. 回退与清理
 
 - 新内核有问题：直接在GRUB里选旧SL7内核启动。它们内嵌Romulus13设备树，GRUB条目不带`devicetree`，仍可用。

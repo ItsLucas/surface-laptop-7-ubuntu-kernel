@@ -9,9 +9,9 @@
 - 从发行版 `linux-image-generic` 的当前候选依赖解析内核版本和ABI，再取**同版本**的 `linux-source-*` 与 `linux-buildinfo-*-generic`。没有固定7.2；Ubuntu切换到7.3时会自动选择7.3源码和配置。
 - 只使用stonking、stonking-updates、stonking-security，不跟踪proposed，也不会自动换到下一版Ubuntu。
 - Ubuntu版本、补丁、构建脚本、安装测试、workflow或公开模块证书改变才重建。手动选择force可强制重建；每次产物的内核release都唯一，便于并存。
-- 五个必需硬件补丁按series严格依次应用，`--fuzz=0`。0006 QRTR回退另列于`series-if-needed`：正向预检成功才应用，或用反向dry-run确认全部修改后代码已存在才记为无需应用；不实际反向改源码。未知冲突、部分应用、源/config不同步、工具链变化或编译失败均停止并通知，不自动改补丁。
+- 五个必需硬件补丁按series严格依次应用，`--fuzz=0`。`series-if-needed`用于按源码状态携带的补丁：正向预检成功才应用，或用反向dry-run确认全部修改后代码已存在才记为无需应用；不实际反向改源码。目前为空。未知冲突、部分应用、源/config不同步、工具链变化或编译失败均停止并通知，不自动改补丁。
 - 已审阅的7.3 GENI适配位于`patches/variants/7.3/`，按内核系列替换0002，7.2继续使用原版。上游合入状态和X1E电源改进见[7.3核对记录](docs/7.3-upstream-audit.zh-CN.md)。
-- 7.3的Wi-Fi睡眠恢复回归通过回退QRTR注册时握手改动处理，保留原PCIe省电策略；一次实机deep恢复成功，证据与适用限制见[恢复诊断记录](docs/7.3-wifi-resume.zh-CN.md)。`BUILD.json`同时记录补丁输入和实际应用/无需应用结果。
+- 7.3的Wi-Fi睡眠恢复回归曾通过回退QRTR注册时握手改动（0006）处理。Ubuntu 7.3.0-6.6（上游rc4）已带上游修复：MHI恢复时重新发送QRTR HELLO，因此0006已退役，需实机重新验证deep恢复；见[恢复诊断记录](docs/7.3-wifi-resume.zh-CN.md)。`BUILD.json`同时记录补丁输入和实际应用/无需应用结果。
 - 失败时自动创建/更新一个GitHub Issue，`@仓库所有者`并附运行链接。通知邮件/推送依赖所有者的GitHub通知设置。后续成功构建自动关闭该Issue。GitHub基础设施整体故障时通知任务也可能无法运行。
 - 成功后发布 **prerelease / signed candidate**，含校验清单、官方输入版本、补丁哈希、构建日志、签名后的内核deb及可独立重签的未签名构建包；编译和验签成功不代表已通过实机验收。
 
@@ -102,7 +102,7 @@ sudo python3 ci/sign-local.py \
 | 0003 | 本机GTCH SPI触摸屏设备树 |
 | 0004 | SPI HID系统睡眠、关机和电源生命周期 |
 | 0005 | GPIO供电/reset职责分离、触屏跟随内置屏幕省电 |
-| 0006（按源码状态） | 回退7.3 QRTR HELLO改动，恢复Wi-Fi固件在系统睡眠后的服务发现 |
+| ~~0006~~ | 已退役：7.3.0-6.6起由上游“MHI恢复时重发QRTR HELLO”修复取代 |
 
 来源见[PROVENANCE.md](PROVENANCE.md)。0004/0005原补丁说明中的test字样来自2026-09-15阶段归档；之后已在基线7.2.0-5.5上使用，但不意味着任意新版本自动通过实测。13.8英寸与15英寸的触摸屏硬件不同（ITCH/I2C与GTCH/SPI），本仓库只支持15英寸。
 
