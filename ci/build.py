@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import time
 from common import ROOT, apply_patches, patches, run, sha256, verify_files
 
 
@@ -86,6 +87,7 @@ def main():
     if observed != data['release']:
         raise RuntimeError(f'Unexpected kernel release {observed}')
     run(['ccache', '--zero-stats'])
+    build_started = time.monotonic()
     pld_source = ROOT / 'drivers/qcom-pld-power'
     pld_output = work / 'pld-output'
     pld_make = make + ['M=' + str(pld_source), 'MO=' + str(pld_output),
@@ -110,6 +112,11 @@ def main():
         stats = subprocess.run(['ccache', '--show-stats'], capture_output=True, text=True)
         print(stats.stdout, flush=True)
         (logs / 'ccache-stats.txt').write_text(stats.stdout + stats.stderr)
+    # Keep only what this build used, so the saved cache is one build's working
+    # set: small enough for the Actions cache, yet never evicted mid-build.
+    unused_for = int(time.monotonic() - build_started) + 60
+    run(['ccache', '--evict-older-than', f'{unused_for}s'])
+    run(['ccache', '--show-stats'])
     bundle = work / ('sl7-' + data['release'] + '-unsigned'); bundle.mkdir()
     stage = bundle / 'root'; stage.mkdir()
     with (logs / 'modules-install.log').open('w') as log:
