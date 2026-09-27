@@ -10,7 +10,7 @@
 - 只使用stonking、stonking-updates、stonking-security，不跟踪proposed，也不会自动换到下一版Ubuntu。
 - Ubuntu版本、补丁、构建脚本、安装测试、workflow或公开模块证书改变才重建。手动选择force可强制重建；每次产物的内核release都唯一，便于并存。
 - 五个必需硬件补丁按series严格依次应用，`--fuzz=0`。`series-if-needed`用于按源码状态携带的补丁：正向预检成功才应用，或用反向dry-run确认全部修改后代码已存在才记为无需应用；不实际反向改源码。目前为空。未知冲突、部分应用、源/config不同步、工具链变化或编译失败均停止并通知，不自动改补丁。
-- 已审阅的7.3 GENI适配位于`patches/variants/7.3/`，按内核系列替换0002，7.2继续使用原版。上游合入状态和X1E电源改进见[7.3核对记录](docs/7.3-upstream-audit.zh-CN.md)。
+- 0002已按7.3的GENI接口适配；7.2版本已于2026-09-27退役，不再支持7.2内核。`patches/variants/<系列>/`机制保留，将来某个内核系列需要替换补丁时再用。上游合入状态和X1E电源改进见[7.3核对记录](docs/7.3-upstream-audit.zh-CN.md)。
 - 7.3的Wi-Fi睡眠恢复回归曾通过回退QRTR注册时握手改动（0006）处理。Ubuntu 7.3.0-6.6（上游rc4）已带上游修复：MHI恢复时重新发送QRTR HELLO，因此0006已退役，需实机重新验证deep恢复；见[恢复诊断记录](docs/7.3-wifi-resume.zh-CN.md)。`BUILD.json`同时记录补丁输入和实际应用/无需应用结果。
 - 失败时自动创建/更新一个GitHub Issue，`@仓库所有者`并附运行链接。通知邮件/推送依赖所有者的GitHub通知设置。后续成功构建自动关闭该Issue。GitHub基础设施整体故障时通知任务也可能无法运行。
 - 成功后发布 **prerelease / signed candidate**，含校验清单、官方输入版本、补丁哈希、构建日志、签名后的内核deb及可独立重签的未签名构建包；编译和验签成功不代表已通过实机验收。
