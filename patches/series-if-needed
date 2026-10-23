@@ -1,3 +1,7 @@
 # Reviewed postimage detection only; unknown conflicts must fail the build.
-# Empty: 0006 (QRTR HELLO revert) retired once Ubuntu 7.3.0-6.6 carried the
+# 0006 (QRTR HELLO revert) was retired once Ubuntu 7.3.0-6.6 carried the
 # upstream resend-HELLO-on-MHI-resume fix; see docs/7.3-wifi-resume.zh-CN.md.
+# 0023-0025: PS883x dock series queued for v7.4-rc1; skipped once Ubuntu has it.
+0023-ps883x-support-dp-state-f.patch
+0024-ps883x-delay-after-config-writes.patch
+0025-ps883x-disable-usb4-on-x1e.patch
