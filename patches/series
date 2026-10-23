@@ -19,3 +19,5 @@
 0020-surface-aggregator-sl7-pos-events.patch
 0021-spi-hid-balance-irq-after-error-storm.patch
 0022-romulus15-webcam.patch
+0026-qce-register-algos-only-on-request.patch
+0027-qce-revert-mark-broken.patch
