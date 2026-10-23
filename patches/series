@@ -17,3 +17,5 @@
 0018-romulus15-displayport-audio.patch
 0019-romulus15-enable-iris.patch
 0020-surface-aggregator-sl7-pos-events.patch
+0021-spi-hid-balance-irq-after-error-storm.patch
+0022-romulus15-webcam.patch
