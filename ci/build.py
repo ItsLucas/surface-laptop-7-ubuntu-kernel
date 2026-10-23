@@ -58,7 +58,10 @@ def main():
     data['module_cert_der_sha256'] = sha256(cert_der)
     data['patch_application'] = apply_patches(source, logs / 'patches.log', kernel=data['kernel'])
     config = source / 'scripts/config'
+    # 0026/0027: QCE binds only to manage its clocks and interconnect vote, so
+    # the NoC providers can reach sync_state(); no crypto algorithms register.
     run([config, '--file', output / '.config', '--module', 'SPI_HID',
+         '--module', 'CRYPTO_DEV_QCE',
          '--set-str', 'MODULE_SIG_KEY', 'certs/sl7-module-cert.pem',
          '--disable', 'LOCALVERSION_AUTO', '--set-str', 'LOCALVERSION', '',
          '--set-str', 'BUILD_SALT', ''])
@@ -80,7 +83,7 @@ def main():
     run(make + ['olddefconfig'])
     with (logs / 'config.diff').open('w') as f:
         subprocess.run(['diff', '-u', official / 'config', output / '.config'], stdout=f, check=False)
-    for setting in ['CONFIG_SPI_HID=m', 'CONFIG_MODULE_SIG=y', 'CONFIG_SECURITY_LOCKDOWN_LSM=y', 'CONFIG_RUST=y']:
+    for setting in ['CONFIG_SPI_HID=m', 'CONFIG_CRYPTO_DEV_QCE=m', 'CONFIG_MODULE_SIG=y', 'CONFIG_SECURITY_LOCKDOWN_LSM=y', 'CONFIG_RUST=y']:
         if setting not in (output / '.config').read_text().splitlines():
             raise RuntimeError('Required setting lost: ' + setting)
     observed = subprocess.check_output([str(x) for x in make + ['-s', 'kernelrelease']], text=True).strip()
