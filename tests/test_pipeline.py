@@ -7,7 +7,7 @@ import unittest
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'ci'))
-from common import apply_patches, image_release, release_name, sha256, verify_files, patches, recipe_hash
+from common import apply_patches, image_release, parse_makefile_version, release_name, sha256, verify_files, patches, recipe_hash
 from resolve import resolve, has_candidate
 import notify
 
@@ -46,6 +46,22 @@ class VersionTests(unittest.TestCase):
         cache['linux-source-7.3.0'].candidate.version = '7.3.0-11.11'
         with self.assertRaises(RuntimeError):
             resolve(cache)
+
+    def test_makefile_version_accepts_stable_sublevel_and_rc_extraversion(self):
+        stable = 'VERSION = 7\nPATCHLEVEL = 3\nSUBLEVEL = 1\nEXTRAVERSION =\n'
+        parsed = parse_makefile_version(stable, expected_kernel='7.3.0')
+        self.assertEqual(parsed['kernelversion'], '7.3.1')
+        self.assertEqual(parsed['extraversion'], '')
+
+        rc = 'VERSION = 7\nPATCHLEVEL = 3\nSUBLEVEL = 0\nEXTRAVERSION = -rc5\n'
+        parsed_rc = parse_makefile_version(rc, expected_kernel='7.3.0')
+        self.assertEqual(parsed_rc['kernelversion'], '7.3.0-rc5')
+        self.assertEqual(parsed_rc['extraversion'], '-rc5')
+
+        with self.assertRaises(ValueError):
+            parse_makefile_version(stable, expected_kernel='7.4.0')
+        with self.assertRaises(ValueError):
+            parse_makefile_version('VERSION = 7\nPATCHLEVEL = 3\n', expected_kernel='7.3.0')
 
 
 class PatchTests(unittest.TestCase):

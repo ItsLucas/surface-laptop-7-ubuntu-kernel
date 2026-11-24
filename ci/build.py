@@ -8,7 +8,7 @@ import re
 import shutil
 import subprocess
 import time
-from common import ROOT, apply_patches, patches, run, sha256, verify_files
+from common import ROOT, apply_patches, parse_makefile_version, patches, run, sha256, verify_files
 
 
 def main():
@@ -39,9 +39,9 @@ def main():
     tarball, = (unpack / 'usr/src').glob('linux-source-*.tar.*')
     run(['tar', '-xf', tarball, '-C', work])
     source = work / ('linux-source-' + data['kernel'])
-    source_makefile = (source / 'Makefile').read_text()
-    upstream_extra = re.search(r'^EXTRAVERSION[ \t]*=[ \t]*([^ \t\r\n]*)', source_makefile, re.M)
-    data['upstream_extraversion'] = upstream_extra.group(1) if upstream_extra else ''
+    upstream = parse_makefile_version((source / 'Makefile').read_text(), expected_kernel=data['kernel'])
+    data['upstream_version'] = upstream['kernelversion']
+    data['upstream_extraversion'] = upstream['extraversion']
     output = work / 'output'; output.mkdir()
     official = info / 'usr/lib/linux' / (data['kernel'] + '-' + data['abi'] + '-generic')
     original_config = (official / 'config').read_text()
@@ -73,9 +73,12 @@ def main():
     rustc = 'rustc-' + rust.group(1)
     run(['apt-get', 'install', '-y', '--no-install-recommends', f'gcc-{gcc_major}', f'g++-{gcc_major}',
          rustc, 'rust-' + rust.group(1) + '-src', 'bindgen'], env=env)
-    # Ubuntu's ABI does not include upstream -rcN; keep it in BUILD.json instead.
-    make = ['make', '-C', source, 'O=' + str(output), 'EXTRAVERSION=',
-            'LOCALVERSION=-' + data['abi'] + '-sl7.' + data['release'].split('-sl7.')[1],
+    # Ubuntu keeps X.Y.0-<abi>-<flavour> even as upstream stable SUBLEVEL or
+    # -rcN EXTRAVERSION advances. Override KERNELRELEASE directly so
+    # UTS_RELEASE, vermagic and /lib/modules match Ubuntu's ABI while
+    # LINUX_VERSION_CODE stays true to the upstream source Makefile.
+    make = ['make', '-C', source, 'O=' + str(output),
+            'KERNELRELEASE=' + data['release'],
             # Rust uses HOSTCC as a single linker executable, not a shell command.
             f'CC=ccache gcc-{gcc_major}', f'HOSTCC=gcc-{gcc_major}', f'HOSTCXX=g++-{gcc_major}',
             'RUSTC=' + rustc, 'BINDGEN=bindgen']

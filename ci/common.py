@@ -66,6 +66,27 @@ def image_release(name):
     return match.group(1), match.group(2)
 
 
+def parse_makefile_version(makefile_text, expected_kernel=None):
+    fields = {}
+    for key in ('VERSION', 'PATCHLEVEL', 'SUBLEVEL'):
+        match = re.search(rf'^{key}[ \t]*=[ \t]*(\d+)[ \t]*$', makefile_text, re.M)
+        if not match:
+            raise ValueError(f'Missing or invalid {key} in kernel Makefile')
+        fields[key.lower()] = match.group(1)
+    extra_match = re.search(r'^EXTRAVERSION[ \t]*=[ \t]*([^ \t\r\n]*)', makefile_text, re.M)
+    extra = extra_match.group(1) if extra_match else ''
+    fields['extraversion'] = extra
+    fields['kernelversion'] = f"{fields['version']}.{fields['patchlevel']}.{fields['sublevel']}{extra}"
+    if expected_kernel is not None:
+        if not re.fullmatch(r'\d+\.\d+(?:\.\d+)?', expected_kernel):
+            raise ValueError(f'Invalid expected kernel version: {expected_kernel}')
+        expected_series = '.'.join(expected_kernel.split('.')[:2])
+        actual_series = f"{fields['version']}.{fields['patchlevel']}"
+        if actual_series != expected_series:
+            raise ValueError(f'Kernel Makefile series {actual_series} does not match Ubuntu kernel {expected_kernel}')
+    return fields
+
+
 def release_name(kernel, abi, run_number, attempt):
     for n in (run_number, attempt):
         if not re.fullmatch(r'[1-9][0-9]*', str(n)):
